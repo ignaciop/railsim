@@ -3,7 +3,7 @@
 #include <unistd.h>
 
 #include "r_train.h"
-#include "r_event.h"
+#include "r_time.h"
 
 struct train *new_train(void) {
     struct train *nt = (struct train *)malloc(sizeof(struct train));
@@ -19,8 +19,8 @@ struct train *new_train(void) {
     int t_length[2] = {100, 200};
     nt->length = t_length[rand() % 2];
     
-    nt->arrival_time = new_event();
-    nt->departure_time = new_event();
+    nt->arrival_time = new_time();
+    nt->departure_time = new_time();
     
     char t_points[2] = {'A', 'E'};
     nt->origin = t_points[rand() % 2];
@@ -30,8 +30,8 @@ struct train *new_train(void) {
 }
 
 void delete_train(struct train **t) {
-    delete_event(&((*t)->arrival_time));
-    delete_event(&((*t)->departure_time));
+    delete_time(&((*t)->arrival_time));
+    delete_time(&((*t)->departure_time));
     
     free(*t);
     *t = NULL;
