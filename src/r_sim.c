@@ -59,9 +59,7 @@ int main(void) {
     printf("%s\n", "\033[1;97m\U0001F534 Line 3 (B \U0001F870\U0001F872 E)     | Passing Trains: 22 |\033[0m");
     printf("%s\n", "\033[1;97m\U0001F7E0 Line 4 (B \U0001F870\U0001F872 F)     | Passing Trains: 15 |\033[0m");
     printf("\n%s\n", "\033[1;93m\U0001F7B2 System Overloads \U0001F7B2\033[0m\033[1;97m   | Total: 3 | Average Number of Trains Waiting Passage: 7 |\033[0m");
-    printf("\n%s\n", "\033[1;91m\U0001F7AC Tunnel Breakdowns \U0001F7AC\033[0m\033[1;97m  | Total: 4 | Average Number of Trains Waiting Passage: 5 |\033[0m");
-    printf("\n%s\n\n", "\033[1;96m\U00002BC1 Tunnel Cleared \U00002BC1\033[0m\033[1;97m     | Time: 30 seconds |\033[0m");
-    
+    printf("\n%s\n\n", "\033[1;91m\U0001F7AC Tunnel Breakdowns \U0001F7AC\033[0m\033[1;97m  | Total: 4 | Average Number of Trains Waiting Passage: 5 |\033[0m");
     
     return EXIT_SUCCESS;
 }
