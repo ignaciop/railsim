@@ -14,6 +14,6 @@ struct train {
 
 struct train *new_train(void);
 void delete_train(struct train **t);
-void print_train(struct train *t);
+void print_status(struct train *t);
 
 #endif
