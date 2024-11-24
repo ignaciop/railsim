@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <pthread.h>
 
 #include "r_section.h"
 #include "sg_queue.h"
 
-#define LINES 4
+#define LOOPS 5
 
 int main(void) {
     srand(time(NULL));
@@ -19,7 +20,7 @@ int main(void) {
     struct section *sect_BC = new_section('B');
     struct section *sect_DF = new_section('F');
     
-    for (int i = 0; i < LINES; i++) {
+    for (int i = 0; i < LOOPS; i++) {
         double p = (double)rand() / RAND_MAX;
         
         if (p < prob_arrive) {

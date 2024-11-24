@@ -45,9 +45,8 @@ void add_train(struct section *s) {
 }
 
 void dispatch_train(struct section *s, char dest) {
-    struct train *t = (struct train *)sg_queue_dequeue(s->trains);
-    
-    if (t != NULL) {
+    if (sg_queue_size(s->trains) != 0) {
+        struct train *t = (struct train *)sg_queue_dequeue(s->trains);
         t->destination = dest;
         
         print_status(t); // Only temp to output. This will be managed by control center once the train passes tunnel
