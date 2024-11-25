@@ -1,13 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
 #include <pthread.h>
 
 #include "r_section.h"
-#include "sg_queue.h"
+#include "r_control.h"
 
-#define LOOPS 5
 
 int main(void) {
     srand(time(NULL));
@@ -15,11 +12,30 @@ int main(void) {
     double prob_arrive = 0.5;
     double prob_depart = 0.5;
     
-    struct section *sect_AC = new_section('A');
-    struct section *sect_DE = new_section('E');
-    struct section *sect_BC = new_section('B');
-    struct section *sect_DF = new_section('F');
+    struct section *sect_AC = new_section('A', prob_arrive);
+    //struct section *sect_DE = new_section('E', prob_arrive);
+    //struct section *sect_BC = new_section('B', prob_arrive);
+    //struct section *sect_DF = new_section('F', prob_arrive);
     
+    pthread_t t_AC = 0;
+    //pthread_t t_DE = 0;
+    //pthread_t t_BC = 0;
+    //pthread_t t_DF = 0;
+    
+    pthread_create(&t_AC, NULL, add_train, (void *)sect_AC);
+    //pthread_create(&t_DE, NULL, add_train, (void *)sect_DE);
+    //pthread_create(&t_BC, NULL, add_train, (void *)sect_BC);
+    //pthread_create(&t_DF, NULL, add_train, (void *)sect_DF);
+    
+    pthread_t t_control = 0;
+    
+    pthread_create(&t_control, NULL, tunnel_control, (void *)sect_AC);
+    
+    
+    pthread_join(t_AC, NULL);
+    pthread_join(t_control, NULL);
+    
+    /*
     for (int i = 0; i < LOOPS; i++) {
         double p = (double)rand() / RAND_MAX;
         
@@ -94,8 +110,8 @@ int main(void) {
     delete_section(&sect_BC);
     delete_section(&sect_DE);
     delete_section(&sect_DF);
-    
-    
+    */
+    delete_section(&sect_AC);
     
     
     
