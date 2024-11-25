@@ -17,7 +17,6 @@ struct section *new_section(char header, double prob_arrive) {
     ns->header = header;
     ns->prob_arrive = prob_arrive;
     ns->trains = sg_queue_new();
-    ns->dispatched_trains = 0;
     
     ns->mtx = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(ns->mtx, NULL);
@@ -47,17 +46,27 @@ void delete_section(struct section **s) {
     *s = NULL;
 }
 
-/*
-void dispatch_train(struct section *s, char dest) {
-    if (sg_queue_size(s->trains) != 0) {
-        struct train *t = (struct train *)sg_queue_dequeue(s->trains);
-        t->destination = dest;
+void *add_train(void *arg) {
+    struct section *s = (struct section *)arg;
+    
+    while (1) {
+        pthread_mutex_lock(s->mtx);
+
+        double p = (double)rand() / RAND_MAX;
+            
+        if (p < s->prob_arrive) {
+            struct train *nt = new_train();
+            nt->origin = s->header;
+
+            sg_queue_enqueue(s->trains, (void *)nt);
+            
+            printf("Train %d in queue...\n", nt->id);
+            
+            pthread_cond_signal(s->cv);
+        }
         
-        print_status(t); // Only temp to output. This will be managed by control center once the train passes tunnel
+        pthread_mutex_unlock(s->mtx);
         
-        s->dispatched_trains++;
-        
-        delete_train(&t);
+        sleep(1);
     }
 }
-*/

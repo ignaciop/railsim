@@ -2,9 +2,8 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#include "r_section.h"
 #include "r_control.h"
-
+#include "r_section.h"
 
 int main(void) {
     srand(time(NULL));
@@ -12,106 +11,30 @@ int main(void) {
     double prob_arrive = 0.5;
     double prob_depart = 0.5;
     
-    struct section *sect_AC = new_section('A', prob_arrive);
-    //struct section *sect_DE = new_section('E', prob_arrive);
-    //struct section *sect_BC = new_section('B', prob_arrive);
-    //struct section *sect_DF = new_section('F', prob_arrive);
+    struct control *cc = new_control(prob_arrive, prob_depart);
     
-    pthread_t t_AC = 0;
-    //pthread_t t_DE = 0;
-    //pthread_t t_BC = 0;
-    //pthread_t t_DF = 0;
-    
-    pthread_create(&t_AC, NULL, add_train, (void *)sect_AC);
-    //pthread_create(&t_DE, NULL, add_train, (void *)sect_DE);
-    //pthread_create(&t_BC, NULL, add_train, (void *)sect_BC);
-    //pthread_create(&t_DF, NULL, add_train, (void *)sect_DF);
-    
-    pthread_t t_control = 0;
-    
-    pthread_create(&t_control, NULL, tunnel_control, (void *)sect_AC);
-    
-    
-    pthread_join(t_AC, NULL);
-    pthread_join(t_control, NULL);
-    
-    /*
-    for (int i = 0; i < LOOPS; i++) {
-        double p = (double)rand() / RAND_MAX;
-        
-        if (p < prob_arrive) {
-            add_train(sect_AC);
-            add_train(sect_DE);
-            add_train(sect_DF);
-        } else {
-            add_train(sect_BC);
-        }
-    }
-    
-    printf("\nQueued Trains in AC: %d\n", sg_queue_size(sect_AC->trains));
-    printf("\nQueued Trains in BC: %d\n", sg_queue_size(sect_BC->trains));
-    printf("\nQueued Trains in DE: %d\n", sg_queue_size(sect_DE->trains));
-    printf("\nQueued Trains in DF: %d\n\n", sg_queue_size(sect_DF->trains));
-    
-    while (1) {
-        double p = (double)rand() / RAND_MAX;
-        
-        if (sg_queue_size(sect_AC->trains) != 0 || sg_queue_size(sect_BC->trains) != 0 || sg_queue_size(sect_DE->trains) != 0 || sg_queue_size(sect_DF->trains) != 0) {
-            if (sg_queue_size(sect_AC->trains) != 0) {
-                if (p < prob_depart) {
-                    dispatch_train(sect_AC, 'E');
-                    sleep(1);
-                } else {
-                    dispatch_train(sect_AC, 'F');
-                    sleep(1);
-                }
-            }
-            
-            if (sg_queue_size(sect_BC->trains) != 0) {
-                if (p < prob_depart) {
-                    dispatch_train(sect_BC, 'E');
-                    sleep(1);
-                } else {
-                    dispatch_train(sect_BC, 'F');
-                    sleep(1);
-                }
-            }
-            
-            if (sg_queue_size(sect_DE->trains) != 0) {
-                if (p < prob_depart) {
-                    dispatch_train(sect_DE, 'A');
-                    sleep(1);
-                } else {
-                    dispatch_train(sect_DE, 'B');
-                    sleep(1);
-                }
-            }
-            
-            if (sg_queue_size(sect_DF->trains) != 0) {
-                if (p < prob_depart) {
-                    dispatch_train(sect_DF, 'A');
-                    sleep(1);
-                } else {
-                    dispatch_train(sect_BC, 'B');
-                    sleep(1);
-                }
-            }
-        } else {
-            break;
-        }
-    }
-    
-    printf("\nQueued Trains in AC: %d\n", sg_queue_size(sect_AC->trains));
-    printf("\nQueued Trains in BC: %d\n", sg_queue_size(sect_BC->trains));
-    printf("\nQueued Trains in DE: %d\n", sg_queue_size(sect_DE->trains));
-    printf("\nQueued Trains in DF: %d\n\n", sg_queue_size(sect_DF->trains));
+    pthread_t st[NUM_SECTIONS] = {0};
+    pthread_t ct = 0;
 
-    delete_section(&sect_AC);
-    delete_section(&sect_BC);
-    delete_section(&sect_DE);
-    delete_section(&sect_DF);
-    */
-    delete_section(&sect_AC);
+    /*
+     * cc->sections[0] represents Section AC
+     * cc->sections[1] represents Section BC
+     * cc->sections[2] represents Section DE
+     * cc->sections[3] represents Section DF
+     */
+    for (int i = 0; i < NUM_SECTIONS; i++) {
+        pthread_create(&st[i], NULL, add_train, (void *)(cc->sections[i]));
+    }
+    
+    pthread_create(&ct, NULL, tunnel_control, (void *)cc);
+    
+    for (int i = 0; i < NUM_SECTIONS; i++) {
+        pthread_join(st[i], NULL);
+    }
+    
+    pthread_join(ct, NULL);
+    
+    delete_control(&cc);
     
     
     

@@ -2,8 +2,8 @@
 #define SG_QUEUE_H
 
 struct sg_queue_node {
-    void *data;
     struct sg_queue_node *next;
+    void *data;
 };
 
 struct sg_queue {
