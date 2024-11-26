@@ -7,6 +7,7 @@
 #include "r_section.h"
 #include "r_train.h"
 #include "r_symbols.h"
+#include "pthread_sleep.h"
 
 struct control *new_control(double prob_arrive, double prob_depart) {
     struct control *nc = (struct control *)malloc(sizeof(struct control));
@@ -100,10 +101,14 @@ void *tunnel_control(void *arg) {
         while (sg_queue_size(s_priority->trains) == 0) {
             pthread_cond_wait(s_priority->cv, s_priority->mtx);
         }
+        
+        pthread_sleep(3);
 
         struct train *t = (struct train *)sg_queue_dequeue(s_priority->trains);
         
         set_train_destination(s_priority->header, t);
+        
+        t->departure_time = new_time();
             
         print_status(PASSING_SIGN, t);
         
@@ -113,7 +118,7 @@ void *tunnel_control(void *arg) {
 
         pthread_mutex_unlock(s_priority->mtx);
         
-        sleep(3);
+        pthread_sleep(3);
     }
     
     return NULL;

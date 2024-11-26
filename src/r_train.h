@@ -1,6 +1,8 @@
 #ifndef TRAIN_H
 #define TRAIN_H
 
+#include <time.h>
+
 #include "r_time.h"
 
 #define PROB_LENGTH 0.7

@@ -19,8 +19,11 @@ struct train *new_train() {
             
     nt->length = (p < PROB_LENGTH) ? 100 : 200;
     
+    //time_t now = time(NULL);
+    //nt->arrival_time = localtime(&now);
     nt->arrival_time = new_time();
-    nt->departure_time = new_time();
+    
+    nt->departure_time = NULL;
     nt->origin = ' ';
     nt->destination = ' ';
     
