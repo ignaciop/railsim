@@ -110,9 +110,20 @@ void *tunnel_control(void *arg) {
         
         t->departure_time = new_time();
         
-        double p = (double)rand() / RAND_MAX;
+        // 1 second to arrive from section to tunnel
+        pthread_sleep(1);
         
         print_status(PASSING_SIGN, t);
+        
+        if (t->length == 100) {
+            // If train length is 100 m (v = 100 m/s), 1 second to go through tunnel
+            pthread_sleep(1);
+        } else {
+            // If train length is 200 m (v = 100 m/s), 2 seconds to go through tunnel
+            pthread_sleep(2);
+        }
+        
+        double p = (double)rand() / RAND_MAX;
         
         if (p < PROB_BREAKDOWN) {
             print_status(BREAKDOWN_SIGN, t);
@@ -120,13 +131,14 @@ void *tunnel_control(void *arg) {
             pthread_sleep(4);
         }
         
+        // 1 second to pass final section
+        pthread_sleep(1);
+        
         //printf("Train %d dispatched..., %d left\n", t->id, sg_queue_size(s_priority->trains));
         
         delete_train(&t);
 
         pthread_mutex_unlock(s_priority->mtx);
-        
-        pthread_sleep(3);
     }
     
     return NULL;
