@@ -60,7 +60,7 @@ void *add_train(void *arg) {
 
             sg_queue_enqueue(s->trains, (void *)nt);
             
-            printf("Added train %d in queue %c. Queue size = %d\n", nt->id, s->header, sg_queue_size(s->trains));
+            //printf("Added train %d in queue %c. Queue size = %d\n", nt->id, s->header, sg_queue_size(s->trains));
             
             pthread_cond_signal(s->cv);
         }

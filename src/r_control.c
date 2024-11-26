@@ -9,6 +9,8 @@
 #include "r_symbols.h"
 #include "pthread_sleep.h"
 
+#define PROB_BREAKDOWN 0.1
+
 struct control *new_control(double prob_arrive, double prob_depart) {
     struct control *nc = (struct control *)malloc(sizeof(struct control));
     
@@ -102,17 +104,23 @@ void *tunnel_control(void *arg) {
             pthread_cond_wait(s_priority->cv, s_priority->mtx);
         }
         
-        pthread_sleep(3);
-
         struct train *t = (struct train *)sg_queue_dequeue(s_priority->trains);
         
         set_train_destination(s_priority->header, t);
         
         t->departure_time = new_time();
-            
+        
+        double p = (double)rand() / RAND_MAX;
+        
         print_status(PASSING_SIGN, t);
         
-        printf("Train %d dispatched..., %d left\n", t->id, sg_queue_size(s_priority->trains));
+        if (p < PROB_BREAKDOWN) {
+            print_status(BREAKDOWN_SIGN, t);
+            
+            pthread_sleep(4);
+        }
+        
+        //printf("Train %d dispatched..., %d left\n", t->id, sg_queue_size(s_priority->trains));
         
         delete_train(&t);
 
@@ -133,7 +141,7 @@ void print_status(char *sign, struct train *t) {
     char line_sign[18] = "";
     char header1 = ' ';
     char header2 = ' ';
-
+    
     strncpy(t_length_p, (t->length == 100) ? "[" : "[[", 2);
     strncpy(t_length_s, (t->length == 100) ? "]" : "]]", 2);
     
@@ -170,6 +178,10 @@ void print_status(char *sign, struct train *t) {
     }
     
     printf("%s %s | %s (%c %s %c) | %s %sT%03d%s | %s TA: %02d:%02d:%02d | %s TD: %02d:%02d:%02d | %s\n", sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
+    
+    if (strcmp(sign, BREAKDOWN_SIGN) == 0) {
+        printf("\n%s%s Repair in Progress... %s %s\n\n", BOLD_FACE, REPAIR_ICON, REPAIR_ICON, RESET_COLOR);
+    }
 }
 
 void set_train_destination(char header, struct train *t) {
