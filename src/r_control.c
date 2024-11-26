@@ -67,35 +67,56 @@ void delete_control(struct control **c) {
 void *tunnel_control(void *arg) {
     struct control *c = (struct control *)arg;
     
-    struct section *s = c->sections[0];
+    struct section *s_AC = c->sections[0];
+    struct section *s_BC = c->sections[1];
+    struct section *s_DE = c->sections[2];
+    struct section *s_DF = c->sections[3];
+    
+    struct section *s_priority = NULL;
+    struct section *s_temp1 = NULL;
+    struct section *s_temp2 = NULL;
     
     while (1) {
-        pthread_mutex_lock(s->mtx);
-
-        while (sg_queue_size(s->trains) == 0) {
-            pthread_cond_wait(s->cv, s->mtx);
-        }
-
-        struct train *t = (struct train *)sg_queue_dequeue(s->trains);
-        
-        double p = (double)rand() / RAND_MAX;
-            
-        if (p < 0.5) {
-            t->destination = 'E';
+        if (sg_queue_size(s_AC->trains) < sg_queue_size(s_BC->trains)) {
+            s_temp1 = s_BC;
         } else {
-            t->destination = 'F';
+            s_temp1 = s_AC;
         }
+        
+        if (sg_queue_size(s_DE->trains) < sg_queue_size(s_DF->trains)) {
+            s_temp2 = s_DF;
+        } else {
+            s_temp2 = s_DE;
+        }
+        
+        if (sg_queue_size(s_temp1->trains) < sg_queue_size(s_temp2->trains)) {
+            s_priority = s_temp2;
+        } else {
+            s_priority = s_temp1;
+        }
+        
+        pthread_mutex_lock(s_priority->mtx);
+
+        while (sg_queue_size(s_priority->trains) == 0) {
+            pthread_cond_wait(s_priority->cv, s_priority->mtx);
+        }
+
+        struct train *t = (struct train *)sg_queue_dequeue(s_priority->trains);
+        
+        set_train_destination(s_priority->header, t);
             
         print_status(PASSING_SIGN, t);
         
-        printf("Train %d dispatched..., %d left\n", t->id, sg_queue_size(s->trains));
+        printf("Train %d dispatched..., %d left\n", t->id, sg_queue_size(s_priority->trains));
         
         delete_train(&t);
 
-        pthread_mutex_unlock(s->mtx);
+        pthread_mutex_unlock(s_priority->mtx);
         
         sleep(3);
     }
+    
+    return NULL;
 }
 
 void print_status(char *sign, struct train *t) {
@@ -108,8 +129,8 @@ void print_status(char *sign, struct train *t) {
     char header1 = ' ';
     char header2 = ' ';
 
-    strncpy(t_length_s, (t->length == 100) ? "[" : "[[", 2);
-    strncpy(t_length_p, (t->length == 100) ? "]" : "]]", 2);
+    strncpy(t_length_p, (t->length == 100) ? "[" : "[[", 2);
+    strncpy(t_length_s, (t->length == 100) ? "]" : "]]", 2);
     
     switch (t->origin) {
         case 'A':
@@ -143,8 +164,18 @@ void print_status(char *sign, struct train *t) {
         break;
     }
     
-    printf("%s %s | %s (%c %s %c) | %s %sT%03d%s | %s TA: %02d:%02d:%02d | %s TD: %02d:%02d:%02d | %s\n", sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_s, t->id , t_length_p, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
+    printf("%s %s | %s (%c %s %c) | %s %sT%03d%s | %s TA: %02d:%02d:%02d | %s TD: %02d:%02d:%02d | %s\n", sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
 }
+
+void set_train_destination(char header, struct train *t) {
+    double p = (double)rand() / RAND_MAX;
+            
+    if (header == 'A' || header == 'B') {
+        t->destination = (p < 0.5) ? 'E' : 'F';
+    } else if (header == 'E' || header == 'F') {
+        t->destination = (p < 0.5) ? 'A' : 'B';
+    }
+} 
 
 /*
 void print_summary(struct control *c) {

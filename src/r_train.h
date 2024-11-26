@@ -3,6 +3,8 @@
 
 #include "r_time.h"
 
+#define PROB_LENGTH 0.7
+
 struct train {
     int id;
     int length;

@@ -15,8 +15,9 @@ struct train *new_train() {
     
     nt->id = rand() % 1000;
     
-    int t_length[2] = {100, 200};
-    nt->length = t_length[rand() % 2];
+    double p = (double)rand() / RAND_MAX;
+            
+    nt->length = (p < PROB_LENGTH) ? 100 : 200;
     
     nt->arrival_time = new_time();
     nt->departure_time = new_time();

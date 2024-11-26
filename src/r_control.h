@@ -27,6 +27,8 @@ void delete_control(struct control **c);
 void *tunnel_control(void *arg);
 
 void print_status(char *sign, struct train *t);
+
+void set_train_destination(char header, struct train *t);
 //void print_summary(struct control *c);
 
 #endif
