@@ -3,74 +3,37 @@
 #include <pthread.h>
 
 #include "r_control.h"
-#include "r_section.h"
 
 int main(void) {
     srand(time(NULL));
     
-    double prob_arrive = 0.5;
-    double prob_depart = 0.5;
+    struct control *cc = new_control();
     
-    struct control *cc = new_control(prob_arrive, prob_depart);
-    
-    pthread_t st[NUM_SECTIONS] = {0};
+    pthread_t st[CONTROL_NUM_SECTIONS] = {0};
     pthread_t ct = 0;
-
+    
     /*
      * cc->sections[0] represents Section AC
      * cc->sections[1] represents Section BC
      * cc->sections[2] represents Section DE
      * cc->sections[3] represents Section DF
      */
-    for (int i = 0; i < NUM_SECTIONS; i++) {
+    for (int i = 0; i < CONTROL_NUM_SECTIONS; i++) {
         pthread_create(&st[i], NULL, add_train, (void *)(cc->sections[i]));
     }
     
     pthread_create(&ct, NULL, tunnel_control, (void *)cc);
     
-    for (int i = 0; i < NUM_SECTIONS; i++) {
+    for (int i = 0; i < CONTROL_NUM_SECTIONS; i++) {
         pthread_join(st[i], NULL);
     }
+
     
     pthread_join(ct, NULL);
     
     delete_control(&cc);
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+   
     /*
-    char *messages[8] = {
-        "\033[1;92m\U0001F781 Tunnel Passing \U0001F783\033[0m\033[1;97m   | \U0001F535 Line 1 (A \U0001F872 E) | \U0001F687 [T28] | \U0001F557 TA: 18:21:23 | \U0001F557 TD: 18:21:27 |\033[0m",
-        "\033[1;93m\U0001F7B2 System Overload \U0001F7B2\033[0m\033[1;97m  | \U0001F557 TSO: 18:21:28 | \U0001F6A5 8 Trains Waiting Passage |\033[0m",
-        "\033[1;91m\U0001F7AC Tunnel Breakdown \U0001F7AC\033[0m\033[1;97m | \U0001F535 Line 1 (A \U0001F872 E) | \U0001F687 [T22] | \U0001F557 TB: 18:21:44 | \U0001F6A5 6 trains waiting passage |\033[0m",
-        "\033[1;92m\U0001F781 Tunnel Passing \U0001F783\033[0m\033[1;97m   | \U0001F7E3 Line 2 (A \U0001F870 F) | \U0001F687 [[T6]] | \U0001F557 TA: 18:22:01 \U0001F557 | TD: 18:22:04 |\033[0m",
-        "\033[1;92m\U0001F781 Tunnel Passing \U0001F783\033[0m\033[1;97m   | \U0001F534 Line 3 (B \U0001F870 E) | \U0001F687 [T15] | \U0001F557 TA: 18:22:15 | \U0001F557 TD: 18:21:18 |\033[0m",
-        "\033[1;92m\U0001F781 Tunnel Passing \U0001F783\033[0m\033[1;97m   | \U0001F7E0 Line 4 (B \U0001F872 F) | \U0001F687 [[T7]] | \U0001F557 TA: 18:23:10 | \U0001F557 TD: 18:23:12 |\033[0m",
-        "\033[1;93m\U0001F7B2 System Overload \U0001F7B2\033[0m\033[1;97m  | \U0001F557 TSO: 18:23:14 | \U0001F6A5 7 Trains Waiting Passage |\033[0m",
-        "\033[1;92m\U0001F781 Tunnel Passing \U0001F783\033[0m\033[1;97m   | \U0001F7E0 Line 4 (B \U0001F870 F) | \U0001F687 [T19] | \U0001F557 TA: 18:24:03 | \U0001F557 TD: 18:24:05 |\033[0m"
-    };
-    
-    for (int i = 0; i < LINES * LINES; i++) {
-        int index = rand() % 8;
-        
-        printf("%s\n", messages[index]);
-        
-        //sleep(1);
-    }
     
     printf("%s\n\n", "\033[1;96m\U00002BC1 Tunnel Cleared \U00002BC1\033[0m\033[1;97m   | \U0001F557 TF: 18:24:06 | Time to Clear: 30 seconds |\033[0m");
     

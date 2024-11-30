@@ -1,11 +1,12 @@
 #ifndef TRAIN_H
 #define TRAIN_H
 
-#include <time.h>
-
 #include "r_time.h"
 
-#define PROB_LENGTH 0.7
+#define TRAIN_MAX_IDS 1000
+#define TRAIN_LENGTH_1 100
+#define TRAIN_LENGTH_2 200
+#define TRAIN_PROB_LENGTH 0.7
 
 struct train {
     int id;

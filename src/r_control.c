@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "r_control.h"
 #include "r_section.h"
@@ -9,9 +9,17 @@
 #include "r_symbols.h"
 #include "pthread_sleep.h"
 
-#define PROB_BREAKDOWN 0.1
+static void print_status(const char *sign, const struct train *t, const struct control *c);
+static char set_destination(const char tn_origin);
+static size_t queued_trains(const struct control *c);
+static struct section *get_priority_section(const struct control *c);
 
-struct control *new_control(double prob_arrive, double prob_depart) {
+pthread_mutex_t slowdown_mtx = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t slowdown_cv = PTHREAD_COND_INITIALIZER;
+
+bool slowdown_flag = false;
+
+struct control *new_control(void) {
     struct control *nc = (struct control *)malloc(sizeof(struct control));
     
     if (nc == NULL) {
@@ -20,10 +28,7 @@ struct control *new_control(double prob_arrive, double prob_depart) {
         exit(EXIT_FAILURE);
     }
     
-    nc->prob_arrive = prob_arrive;
-    nc->prob_depart = prob_depart;
-    
-    nc->sections = (struct section **)malloc(sizeof(struct section *) * NUM_SECTIONS);
+    nc->sections = (struct section **)malloc(sizeof(struct section *) * CONTROL_NUM_SECTIONS);
     
     if (nc->sections == NULL) {
         perror("Error allocating memory for new sections array.\n");
@@ -31,10 +36,10 @@ struct control *new_control(double prob_arrive, double prob_depart) {
         exit(EXIT_FAILURE);
     }
     
-    nc->sections[0] = new_section('A', prob_arrive);
-    nc->sections[1] = new_section('B', prob_arrive);
-    nc->sections[2] = new_section('E', prob_arrive);
-    nc->sections[3] = new_section('F', prob_arrive);
+    nc->sections[0] = new_section('A', SECTION_PROB_ARRIVE);
+    nc->sections[1] = new_section('B', 1 - SECTION_PROB_ARRIVE);
+    nc->sections[2] = new_section('E', SECTION_PROB_ARRIVE);
+    nc->sections[3] = new_section('F', SECTION_PROB_ARRIVE);
     
     nc->l1_passed_trains = 0;
     nc->l2_passed_trains = 0;
@@ -44,24 +49,28 @@ struct control *new_control(double prob_arrive, double prob_depart) {
     nc->breakdowns = 0;
     
     nc->mtx = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-    pthread_mutex_init(nc->mtx, NULL);
     
-    nc->cv = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
-    pthread_cond_init(nc->cv, NULL);
+    if (nc->mtx == NULL) {
+        perror("Error allocating memory for new control mutex.\n");
+        
+        exit(EXIT_FAILURE);
+    }
+    
+    pthread_mutex_init(nc->mtx, NULL);
     
     return nc;
 }
 
 void delete_control(struct control **c) {
-    for (int i = 0; i < NUM_SECTIONS; i++) {
+    for (int i = 0; i < CONTROL_NUM_SECTIONS; i++) {
         delete_section(&((*c)->sections[i]));
     }
     
     free((*c)->sections);
     (*c)->sections = NULL;
     
-    pthread_cond_destroy((*c)->cv);
     pthread_mutex_destroy((*c)->mtx);
+    (*c)->mtx = NULL;
     
     free(*c);
     *c = NULL;
@@ -70,141 +79,213 @@ void delete_control(struct control **c) {
 void *tunnel_control(void *arg) {
     struct control *c = (struct control *)arg;
     
-    struct section *s_AC = c->sections[0];
-    struct section *s_BC = c->sections[1];
-    struct section *s_DE = c->sections[2];
-    struct section *s_DF = c->sections[3];
-    
-    struct section *s_priority = NULL;
-    struct section *s_temp1 = NULL;
-    struct section *s_temp2 = NULL;
-    
     while (1) {
-        if (sg_queue_size(s_AC->trains) < sg_queue_size(s_BC->trains)) {
-            s_temp1 = s_BC;
-        } else {
-            s_temp1 = s_AC;
-        }
+        pthread_mutex_lock(c->mtx);
         
-        if (sg_queue_size(s_DE->trains) < sg_queue_size(s_DF->trains)) {
-            s_temp2 = s_DF;
-        } else {
-            s_temp2 = s_DE;
-        }
-        
-        if (sg_queue_size(s_temp1->trains) < sg_queue_size(s_temp2->trains)) {
-            s_priority = s_temp2;
-        } else {
-            s_priority = s_temp1;
-        }
-        
-        pthread_mutex_lock(s_priority->mtx);
+        struct section *s_priority = get_priority_section(c);
 
-        while (sg_queue_size(s_priority->trains) == 0) {
-            pthread_cond_wait(s_priority->cv, s_priority->mtx);
+        if (queued_trains(c) > CONTROL_QT_THRESHOLD) {
+            print_status(OVERLOAD_SIGN, NULL, c);
+
+            pthread_mutex_lock(&slowdown_mtx);
+
+            // Flag to all sections to stop adding new trains to their queues
+            slowdown_flag = true;
+            
+            // Broadcast a signal to all sections to stop adding trains to their
+            // respective queues
+            pthread_cond_broadcast(&slowdown_cv);
+            
+            pthread_mutex_unlock(&slowdown_mtx);
+        } else if (queued_trains(c) == 0) {
+            pthread_mutex_lock(&slowdown_mtx);
+            
+            // Flag to all sections to continue adding new trains to their queues
+            slowdown_flag = false;
+            
+            // Broadcast a signal to all sections to continue adding trains to their
+            // respective queues
+            pthread_cond_broadcast(&slowdown_cv);
+            
+            pthread_mutex_unlock(&slowdown_mtx);
+            
+            print_status("Waiting For New Trains...", NULL, c);
+            
+            // 1 second for waiting for new trains arrive to sections
+            pthread_sleep(CONTROL_NEW_TRAINS_TIME);
+        }
+    
+        pthread_mutex_lock(s_priority->mtx);
+        
+        if (sg_queue_size(s_priority->trains) != 0) {
+            struct train *t = (struct train *)sg_queue_dequeue(s_priority->trains);
+            
+            t->destination = set_destination(t->origin);
+            t->departure_time = new_time();
+
+            // 1 second to arrive from section to tunnel
+            pthread_sleep(SECTION_TRAVEL_TIME);
+            
+            print_status(PASSING_SIGN, t, c);
+            
+            // Train length determines time in tunnel (train speed is 100 m/s)
+            // 100 m train takes 1 second, 200 m train takes 2 seconds
+            (t->length == TRAIN_LENGTH_1) ? pthread_sleep(TRAIN_LENGTH_1_TRAVEL_TIME) : pthread_sleep(TRAIN_LENGTH_2_TRAVEL_TIME);
+            
+            double p = (double)rand() / RAND_MAX;
+            
+            if (p < TRAIN_PROB_BREAKDOWN) {
+                print_status(BREAKDOWN_SIGN, t, c);
+                
+                // 4 additional secs for the train to pass if it breaks down
+                pthread_sleep(TRAIN_BREAKDOWN_TIME);
+            }
+            
+            // 1 second to pass final section
+            pthread_sleep(SECTION_TRAVEL_TIME);
+            
+            delete_train(&t);
         }
         
-        struct train *t = (struct train *)sg_queue_dequeue(s_priority->trains);
+        pthread_mutex_unlock(s_priority->mtx);
         
-        set_train_destination(s_priority->header, t);
+        pthread_mutex_unlock(c->mtx);
+    }
+
+    pthread_exit(NULL);
+}
+
+void *add_train(void *arg) {
+    struct section *s = (struct section *)arg;
+  
+    while (1) {
+        pthread_mutex_lock(&slowdown_mtx);
         
-        t->departure_time = new_time();
-        
-        // 1 second to arrive from section to tunnel
-        pthread_sleep(1);
-        
-        print_status(PASSING_SIGN, t);
-        
-        if (t->length == 100) {
-            // If train length is 100 m (v = 100 m/s), 1 second to go through tunnel
-            pthread_sleep(1);
-        } else {
-            // If train length is 200 m (v = 100 m/s), 2 seconds to go through tunnel
-            pthread_sleep(2);
+        // Check global flag to continue or stop adding new trains to section queue
+        while (slowdown_flag) {
+            pthread_cond_wait(&slowdown_cv, &slowdown_mtx);
         }
+        pthread_mutex_unlock(&slowdown_mtx);
+        
+        // At each second, a train arrives at section with probability prob_arrive
+        pthread_sleep(SECTION_ARRIVE_TIME);
+        
+        pthread_mutex_lock(s->mtx);
         
         double p = (double)rand() / RAND_MAX;
         
-        if (p < PROB_BREAKDOWN) {
-            print_status(BREAKDOWN_SIGN, t);
-            
-            pthread_sleep(4);
+        if (p < s->prob_arrive) {
+            struct train *nt = new_train();
+            nt->origin = s->header;
+
+            sg_queue_enqueue(s->trains, (void *)nt);
         }
         
-        // 1 second to pass final section
-        pthread_sleep(1);
-        
-        //printf("Train %d dispatched..., %d left\n", t->id, sg_queue_size(s_priority->trains));
-        
-        delete_train(&t);
-
-        pthread_mutex_unlock(s_priority->mtx);
+        pthread_mutex_unlock(s->mtx);
     }
     
-    return NULL;
+    pthread_exit(NULL);
 }
 
-void print_status(char *sign, struct train *t) {
-    /* Buffer variables to hold correct constant values defined in r_symbols.h */
-    /* Buffer length is constant max size + 1 */
-    char t_length_s[3] = "";
-    char t_length_p[3] = "";
-    char arrow_icon[11] = "";
-    char line_sign[18] = "";
-    char header1 = ' ';
-    char header2 = ' ';
-    
-    strncpy(t_length_p, (t->length == 100) ? "[" : "[[", 2);
-    strncpy(t_length_s, (t->length == 100) ? "]" : "]]", 2);
-    
-    switch (t->origin) {
-        case 'A':
-        case 'B':
-            header1 = t->origin;
-            header2 = t->destination;
-            
-            strncpy(arrow_icon, RIGHT_ARROW_ICON, 10);
-            
-            if (t->destination == 'E') {
-                strncpy(line_sign, (t->origin == 'A') ? LINE1_SIGN : LINE3_SIGN, 17);
-            } else if (t->destination == 'F') {
-                strncpy(line_sign, (t->origin == 'A') ? LINE2_SIGN : LINE4_SIGN, 17);
-            }
-            
-        break;
+static void print_status(const char *sign, const struct train *t, const struct control *c) {
+    if (strcmp(sign, OVERLOAD_SIGN) == 0) {
+        printf("%s %s | %d %s %s |%s\n\n", sign, BOLD_FACE, queued_trains(c), (queued_trains(c) == 1) ? "Train" : "Trains", "Waiting Passage", RESET_COLOR);
+        printf("%s%s Slowing Down All Trains... %s%s\n\n", BOLD_FACE, TRAFFIC_LIGHT_ICON, TRAFFIC_LIGHT_ICON, RESET_COLOR);
+    } else if (strcmp(sign, "Waiting For New Trains...") == 0) {
+        printf("\n%s%s %s %s%s\n\n", BOLD_FACE, LOAD_ICON, sign, LOAD_ICON, RESET_COLOR);
+    } else {
+        /* Buffer variables to hold correct constant values defined in r_symbols.h */
+        /* Buffer length is constant max size + 1 */
+        char t_length_s[3] = "";
+        char t_length_p[3] = "";
+        char arrow_icon[11] = "";
+        char line_sign[18] = "";
+        char header1 = ' ';
+        char header2 = ' ';
         
-        case 'E':
-        case 'F':
-            header1 = t->destination;
-            header2 = t->origin;
+        strncpy(t_length_p, (t->length == TRAIN_LENGTH_1) ? "[" : "[[", 2);
+        strncpy(t_length_s, (t->length == TRAIN_LENGTH_1) ? "]" : "]]", 2);
+        
+        switch (t->origin) {
+            case 'A':
+            case 'B':
+                header1 = t->origin;
+                header2 = t->destination;
+                
+                strncpy(arrow_icon, RIGHT_ARROW_ICON, 10);
+                
+                if (t->destination == 'E') {
+                    strncpy(line_sign, (t->origin == 'A') ? LINE1_SIGN : LINE3_SIGN, 17);
+                } else if (t->destination == 'F') {
+                    strncpy(line_sign, (t->origin == 'A') ? LINE2_SIGN : LINE4_SIGN, 17);
+                }
+                
+            break;
             
-            strncpy(arrow_icon, LEFT_ARROW_ICON, 10);
-            
-            if (t->destination == 'A') {
-                strncpy(line_sign, (t->origin == 'E') ? LINE1_SIGN : LINE2_SIGN, 17);
-            } else if (t->destination == 'B') {
-                strncpy(line_sign, (t->origin == 'E') ? LINE3_SIGN : LINE4_SIGN, 17);
-            }
-            
-        break;
-    }
-    
-    printf("%s %s | %s (%c %s %c) | %s %sT%03d%s | %s TA: %02d:%02d:%02d | %s TD: %02d:%02d:%02d | %s\n", sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
-    
-    if (strcmp(sign, BREAKDOWN_SIGN) == 0) {
-        printf("\n%s%s Repair in Progress... %s %s\n\n", BOLD_FACE, REPAIR_ICON, REPAIR_ICON, RESET_COLOR);
+            case 'E':
+            case 'F':
+                header1 = t->destination;
+                header2 = t->origin;
+                
+                strncpy(arrow_icon, LEFT_ARROW_ICON, 10);
+                
+                if (t->destination == 'A') {
+                    strncpy(line_sign, (t->origin == 'E') ? LINE1_SIGN : LINE2_SIGN, 17);
+                } else if (t->destination == 'B') {
+                    strncpy(line_sign, (t->origin == 'E') ? LINE3_SIGN : LINE4_SIGN, 17);
+                }
+                
+            break;
+        }
+        
+        printf("%s %s | %s (%c %s %c) | %s %sT%03d%s | %s TA: %02d:%02d:%02d | %s TD: %02d:%02d:%02d | %s\n", sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
+        
+        if (strcmp(sign, BREAKDOWN_SIGN) == 0) {
+            printf("\n%s%s%s%s Repair in Progress... %s%s%s%s\n\n", BOLD_FACE, BARRIER_ICON, " ", REPAIR_ICON, REPAIR_ICON, " ", BARRIER_ICON, RESET_COLOR);
+        }
     }
 }
 
-void set_train_destination(char header, struct train *t) {
+static char set_destination(const char tn_origin) {
+    char td = ' ';
+    
     double p = (double)rand() / RAND_MAX;
             
-    if (header == 'A' || header == 'B') {
-        t->destination = (p < 0.5) ? 'E' : 'F';
-    } else if (header == 'E' || header == 'F') {
-        t->destination = (p < 0.5) ? 'A' : 'B';
+    if (tn_origin == 'A' || tn_origin == 'B') {
+        td = (p < CONTROL_PROB_BRANCH) ? 'E' : 'F';
+    } else if (tn_origin == 'E' || tn_origin == 'F') {
+        td = (p < CONTROL_PROB_BRANCH) ? 'A' : 'B';
     }
-} 
+    
+    return td;
+}
+
+static size_t queued_trains(const struct control *c) {
+    size_t total = 0;
+    
+    for (int i = 0; i < CONTROL_NUM_SECTIONS; i++) {
+        total += sg_queue_size(c->sections[i]->trains);
+    }
+
+    return total;
+}
+
+
+static struct section *get_priority_section(const struct control *c) {
+    struct section *s_priority = c->sections[0];
+    
+    for (int i = 1; i < CONTROL_NUM_SECTIONS; i++) {
+        if (sg_queue_size(c->sections[i]->trains) > sg_queue_size(s_priority->trains)) {
+            s_priority = c->sections[i];
+        }
+    }
+    
+    return s_priority;
+}
+
+
+
+
 
 /*
 void print_summary(struct control *c) {

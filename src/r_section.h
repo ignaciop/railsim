@@ -13,8 +13,7 @@ struct section {
     pthread_cond_t *cv;
 };
 
-struct section *new_section(char header, double prob_arrive);
+struct section *new_section(const char header, const double prob_arrive);
 void delete_section(struct section **s);
-void *add_train(void *arg);
 
 #endif

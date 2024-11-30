@@ -4,12 +4,23 @@
 #include <pthread.h>
 
 #include "r_train.h"
+#include "r_section.h"
 
-#define NUM_SECTIONS 4
+#define CONTROL_NUM_SECTIONS 4
+#define CONTROL_PROB_BRANCH 0.5
+#define CONTROL_QT_THRESHOLD 10
+#define CONTROL_NEW_TRAINS_TIME 1
+
+#define SECTION_PROB_ARRIVE 0.5
+#define SECTION_TRAVEL_TIME 1
+#define SECTION_ARRIVE_TIME 1
+
+#define TRAIN_PROB_BREAKDOWN 0.1
+#define TRAIN_BREAKDOWN_TIME 4
+#define TRAIN_LENGTH_1_TRAVEL_TIME 1
+#define TRAIN_LENGTH_2_TRAVEL_TIME 2
 
 struct control {
-    double prob_arrive;
-    double prob_depart;
     struct section **sections;
     int l1_passed_trains;
     int l2_passed_trains;
@@ -18,17 +29,15 @@ struct control {
     int overloads;
     int breakdowns;
     pthread_mutex_t *mtx;
-    pthread_cond_t *cv;
 };
 
-struct control *new_control(double prob_arrive, double prob_depart);
+struct control *new_control(void);
 void delete_control(struct control **c);
 
 void *tunnel_control(void *arg);
+void *add_train(void *arg);
 
-void print_status(char *sign, struct train *t);
 
-void set_train_destination(char header, struct train *t);
 //void print_summary(struct control *c);
 
 #endif

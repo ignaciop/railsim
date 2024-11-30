@@ -4,7 +4,7 @@
 
 #include "r_train.h"
 
-struct train *new_train() {
+struct train *new_train(void) {
     struct train *nt = (struct train *)malloc(sizeof(struct train));
     
     if (nt == NULL) {
@@ -13,16 +13,13 @@ struct train *new_train() {
         exit(EXIT_FAILURE);
     }
     
-    nt->id = rand() % 1000;
+    nt->id = rand() % TRAIN_MAX_IDS;
     
     double p = (double)rand() / RAND_MAX;
             
-    nt->length = (p < PROB_LENGTH) ? 100 : 200;
+    nt->length = (p < TRAIN_PROB_LENGTH) ? TRAIN_LENGTH_1 : TRAIN_LENGTH_2;
     
-    //time_t now = time(NULL);
-    //nt->arrival_time = localtime(&now);
     nt->arrival_time = new_time();
-    
     nt->departure_time = NULL;
     nt->origin = ' ';
     nt->destination = ' ';
