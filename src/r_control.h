@@ -11,7 +11,6 @@
 #define CONTROL_QT_THRESHOLD 10
 #define CONTROL_NEW_TRAINS_TIME 1
 
-#define SECTION_PROB_ARRIVE 0.5
 #define SECTION_TRAVEL_TIME 1
 #define SECTION_ARRIVE_TIME 1
 
@@ -31,7 +30,7 @@ struct control {
     pthread_mutex_t *mtx;
 };
 
-struct control *new_control(void);
+struct control *new_control(double prob_arrive);
 void delete_control(struct control **c);
 
 void *tunnel_control(void *arg);

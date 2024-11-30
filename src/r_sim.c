@@ -7,7 +7,9 @@
 int main(void) {
     srand(time(NULL));
     
-    struct control *cc = new_control();
+    double prob_arrive = 0.5;
+    
+    struct control *cc = new_control(prob_arrive);
     
     pthread_t st[CONTROL_NUM_SECTIONS] = {0};
     pthread_t ct = 0;

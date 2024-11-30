@@ -19,7 +19,7 @@ pthread_cond_t slowdown_cv = PTHREAD_COND_INITIALIZER;
 
 bool slowdown_flag = false;
 
-struct control *new_control(void) {
+struct control *new_control(double prob_arrive) {
     struct control *nc = (struct control *)malloc(sizeof(struct control));
     
     if (nc == NULL) {
@@ -36,10 +36,10 @@ struct control *new_control(void) {
         exit(EXIT_FAILURE);
     }
     
-    nc->sections[0] = new_section('A', SECTION_PROB_ARRIVE);
-    nc->sections[1] = new_section('B', 1 - SECTION_PROB_ARRIVE);
-    nc->sections[2] = new_section('E', SECTION_PROB_ARRIVE);
-    nc->sections[3] = new_section('F', SECTION_PROB_ARRIVE);
+    nc->sections[0] = new_section('A', prob_arrive);
+    nc->sections[1] = new_section('B', 1 - prob_arrive);
+    nc->sections[2] = new_section('E', prob_arrive);
+    nc->sections[3] = new_section('F', prob_arrive);
     
     nc->l1_passed_trains = 0;
     nc->l2_passed_trains = 0;
