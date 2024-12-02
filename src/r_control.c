@@ -6,10 +6,11 @@
 #include "r_control.h"
 #include "r_section.h"
 #include "r_train.h"
+#include "r_time.h"
 #include "r_symbols.h"
 #include "pthread_sleep.h"
 
-static void print_status(const char *sign, const struct train *t, const int opt_num);
+static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et);
 static char set_destination(const char tn_origin);
 static size_t queued_trains(const struct control *c);
 static struct section *get_priority_section(const struct control *c);
@@ -82,6 +83,8 @@ void *tunnel_control(void *arg) {
     /* Counter for show overload sign only once */
     int overload_counter = 0;
     
+    struct r_time *event_time = NULL;
+    
     while (1) {
         pthread_mutex_lock(c->mtx);
         
@@ -124,7 +127,7 @@ void *tunnel_control(void *arg) {
             /* Reset overload sign counter */
             overload_counter = 0;
             
-            print_status("Waiting For New Trains...", NULL, 0);
+            print_status("Waiting For New Trains...", NULL, 0, NULL);
 
             /* Wait 1 second for new trains arrive to sections */
             pthread_sleep(CONTROL_NEW_TRAINS_TIME);
@@ -137,7 +140,11 @@ void *tunnel_control(void *arg) {
         if (overload_counter == 1) {
             qt = queued_trains(c);
             
-            print_status(OVERLOAD_SIGN, NULL, qt);
+            event_time = new_time();
+            
+            print_status(OVERLOAD_SIGN, NULL, qt, event_time);
+            
+            delete_time(&event_time);
         }
         
         pthread_mutex_lock(s_priority->mtx);
@@ -152,7 +159,11 @@ void *tunnel_control(void *arg) {
             /* Take 1 second to arrive from section to tunnel */
             pthread_sleep(SECTION_TRAVEL_TIME);
             
-            print_status(PASSING_SIGN, t, 0);
+            event_time = new_time();
+            
+            print_status(PASSING_SIGN, t, 0, event_time);
+            
+            delete_time(&event_time);
             
             /* Train length determines time in tunnel (train speed is 100 m/s)
              * 100 m train takes 1 second, 200 m train takes 2 seconds
@@ -162,7 +173,11 @@ void *tunnel_control(void *arg) {
             double p = (double)rand() / RAND_MAX;
             
             if (p < TRAIN_PROB_BREAKDOWN) {
-                print_status(BREAKDOWN_SIGN, t, 0);
+                event_time = new_time();
+                
+                print_status(BREAKDOWN_SIGN, t, 0, event_time);
+                
+                delete_time(&event_time);
                 
                 /* Takes 4 additional second for the train to pass if it breaks down */
                 pthread_sleep(TRAIN_BREAKDOWN_TIME);
@@ -215,9 +230,9 @@ void *add_train(void *arg) {
     pthread_exit(NULL);
 }
 
-static void print_status(const char *sign, const struct train *t, const int opt_num) {
+static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et) {
     if (strcmp(sign, OVERLOAD_SIGN) == 0) {
-        printf("%s %s | %d %s %s |%s\n\n", sign, BOLD_FACE, opt_num, (opt_num == 1) ? "Train" : "Trains", "Waiting Passage", RESET_COLOR);
+        printf("%s| %s %02d:%02d:%02d |%s %s %s | %d %s %s |%s\n\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, opt_num, (opt_num == 1) ? "Train" : "Trains", "Waiting Passage", RESET_COLOR);
         printf("%s%s Slowing Down All Trains... %s%s\n\n", BOLD_FACE, TRAFFIC_LIGHT_ICON, TRAFFIC_LIGHT_ICON, RESET_COLOR);
     } else if (strcmp(sign, "Waiting For New Trains...") == 0) {
         printf("\n%s%s %s %s%s\n\n", BOLD_FACE, LOAD_ICON, sign, LOAD_ICON, RESET_COLOR);
@@ -266,7 +281,7 @@ static void print_status(const char *sign, const struct train *t, const int opt_
             break;
         }
         
-        printf("%s %s | %s (%c %s %c) | %s %sT%03d%s | %s TA: %02d:%02d:%02d | %s TD: %02d:%02d:%02d | %s\n", sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
+        printf("%s| %s %02d:%02d:%02d |%s %s %s | %s (%c %s %c) | %s %sT%03d%s | %s Arrival: %02d:%02d:%02d | %s Departure: %02d:%02d:%02d | %s\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
         
         if (strcmp(sign, BREAKDOWN_SIGN) == 0) {
             printf("\n%s%s%s%s Repair in Progress... %s%s%s%s\n\n", BOLD_FACE, BARRIER_ICON, " ", REPAIR_ICON, REPAIR_ICON, " ", BARRIER_ICON, RESET_COLOR);
