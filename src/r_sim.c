@@ -3,8 +3,11 @@
 #include <pthread.h>
 
 #include "r_control.h"
+#include "r_symbols.h"
 
 int main(void) {
+    printf("\n\t%s%s\n%s\n%s\n%s%s\n", BOLD_FACE, TITLE, BORDER, SUBTITLE, BORDER, RESET_COLOR);
+    
     srand(time(NULL));
     
     double prob_arrive = 0.5;

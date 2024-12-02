@@ -5,6 +5,10 @@
 
 #define RESET_COLOR "\033[0m"
 
+#define TITLE "     ### RailSim ###"
+#define SUBTITLE "| A metro simulation using POSIX threads |"
+#define BORDER " ----------------------------------------"
+
 #define RIGHT_ARROW_ICON "\U0001F872"
 #define LEFT_ARROW_ICON "\U0001F870"
 #define TRAIN_ICON "\U0001F687"

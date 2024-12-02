@@ -15,7 +15,7 @@ struct sg_queue {
 struct sg_queue *sg_queue_new(void);
 void sg_queue_enqueue(struct sg_queue *q, void *data);
 void *sg_queue_dequeue(struct sg_queue *q);
-size_t sg_queue_size(struct sg_queue *q);
+size_t sg_queue_size(const struct sg_queue *q);
 void sg_queue_delete(struct sg_queue **q);
 
 #endif

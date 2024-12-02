@@ -9,7 +9,7 @@
 #include "r_symbols.h"
 #include "pthread_sleep.h"
 
-static void print_status(const char *sign, const struct train *t, const struct control *c);
+static void print_status(const char *sign, const struct train *t, const int opt_num);
 static char set_destination(const char tn_origin);
 static size_t queued_trains(const struct control *c);
 static struct section *get_priority_section(const struct control *c);
@@ -19,7 +19,7 @@ pthread_cond_t slowdown_cv = PTHREAD_COND_INITIALIZER;
 
 bool slowdown_flag = false;
 
-struct control *new_control(double prob_arrive) {
+struct control *new_control(const double prob_arrive) {
     struct control *nc = (struct control *)malloc(sizeof(struct control));
     
     if (nc == NULL) {
@@ -79,69 +79,96 @@ void delete_control(struct control **c) {
 void *tunnel_control(void *arg) {
     struct control *c = (struct control *)arg;
     
+    /* Counter for show overload sign only once */
+    int overload_counter = 0;
+    
     while (1) {
         pthread_mutex_lock(c->mtx);
         
         struct section *s_priority = get_priority_section(c);
-
-        if (queued_trains(c) > CONTROL_QT_THRESHOLD) {
-            print_status(OVERLOAD_SIGN, NULL, c);
-
+        
+        int qt = queued_trains(c);
+      
+        if (qt > CONTROL_QT_THRESHOLD) {
             pthread_mutex_lock(&slowdown_mtx);
-
-            // Flag to all sections to stop adding new trains to their queues
+            
+            /* Flag to all sections to stop adding new trains to their queues */
             slowdown_flag = true;
             
-            // Broadcast a signal to all sections to stop adding trains to their
-            // respective queues
+            /*
+             * Broadcast a signal to all sections to stop adding trains to their
+             * respective queues
+             */
             pthread_cond_broadcast(&slowdown_cv);
             
             pthread_mutex_unlock(&slowdown_mtx);
-        } else if (queued_trains(c) == 0) {
+            
+            /* Pause one second to sync broadcast signal to all threads */
+            pthread_sleep(1);
+            
+            overload_counter++;
+        } else if (qt == 0) {
             pthread_mutex_lock(&slowdown_mtx);
             
-            // Flag to all sections to continue adding new trains to their queues
+            /* Flag to all sections to continue adding new trains to their queues */
             slowdown_flag = false;
             
-            // Broadcast a signal to all sections to continue adding trains to their
-            // respective queues
+            /*
+             * Broadcast a signal to all sections to continue adding trains to their
+             * respective queues
+             */
             pthread_cond_broadcast(&slowdown_cv);
             
             pthread_mutex_unlock(&slowdown_mtx);
             
-            print_status("Waiting For New Trains...", NULL, c);
+            /* Reset overload sign counter */
+            overload_counter = 0;
             
-            // 1 second for waiting for new trains arrive to sections
+            print_status("Waiting For New Trains...", NULL, 0);
+
+            /* Wait 1 second for new trains arrive to sections */
             pthread_sleep(CONTROL_NEW_TRAINS_TIME);
         }
-    
+        
+        /*
+         * Broadcasting slowdown_flag to all threads has a delay
+         * This ensures showing the correct amount of queued trains only once
+         */
+        if (overload_counter == 1) {
+            qt = queued_trains(c);
+            
+            print_status(OVERLOAD_SIGN, NULL, qt);
+        }
+        
         pthread_mutex_lock(s_priority->mtx);
         
+        /* Pass trains through tunnel and set their destinations */
         if (sg_queue_size(s_priority->trains) != 0) {
             struct train *t = (struct train *)sg_queue_dequeue(s_priority->trains);
             
             t->destination = set_destination(t->origin);
             t->departure_time = new_time();
 
-            // 1 second to arrive from section to tunnel
+            /* Take 1 second to arrive from section to tunnel */
             pthread_sleep(SECTION_TRAVEL_TIME);
             
-            print_status(PASSING_SIGN, t, c);
+            print_status(PASSING_SIGN, t, 0);
             
-            // Train length determines time in tunnel (train speed is 100 m/s)
-            // 100 m train takes 1 second, 200 m train takes 2 seconds
+            /* Train length determines time in tunnel (train speed is 100 m/s)
+             * 100 m train takes 1 second, 200 m train takes 2 seconds
+             */
             (t->length == TRAIN_LENGTH_1) ? pthread_sleep(TRAIN_LENGTH_1_TRAVEL_TIME) : pthread_sleep(TRAIN_LENGTH_2_TRAVEL_TIME);
             
             double p = (double)rand() / RAND_MAX;
             
             if (p < TRAIN_PROB_BREAKDOWN) {
-                print_status(BREAKDOWN_SIGN, t, c);
+                print_status(BREAKDOWN_SIGN, t, 0);
                 
-                // 4 additional secs for the train to pass if it breaks down
+                /* Takes 4 additional second for the train to pass if it breaks down */
                 pthread_sleep(TRAIN_BREAKDOWN_TIME);
             }
             
-            // 1 second to pass final section
+            /* Take 1 second to pass final section */
             pthread_sleep(SECTION_TRAVEL_TIME);
             
             delete_train(&t);
@@ -160,14 +187,15 @@ void *add_train(void *arg) {
   
     while (1) {
         pthread_mutex_lock(&slowdown_mtx);
-        
-        // Check global flag to continue or stop adding new trains to section queue
+       
+        /* Check global flag to continue or stop adding new trains to section queue */
         while (slowdown_flag) {
             pthread_cond_wait(&slowdown_cv, &slowdown_mtx);
         }
-        pthread_mutex_unlock(&slowdown_mtx);
         
-        // At each second, a train arrives at section with probability prob_arrive
+        pthread_mutex_unlock(&slowdown_mtx);
+            
+        /* At each second, a train arrives at section with probability "prob_arrive" */
         pthread_sleep(SECTION_ARRIVE_TIME);
         
         pthread_mutex_lock(s->mtx);
@@ -187,9 +215,9 @@ void *add_train(void *arg) {
     pthread_exit(NULL);
 }
 
-static void print_status(const char *sign, const struct train *t, const struct control *c) {
+static void print_status(const char *sign, const struct train *t, const int opt_num) {
     if (strcmp(sign, OVERLOAD_SIGN) == 0) {
-        printf("%s %s | %d %s %s |%s\n\n", sign, BOLD_FACE, queued_trains(c), (queued_trains(c) == 1) ? "Train" : "Trains", "Waiting Passage", RESET_COLOR);
+        printf("%s %s | %d %s %s |%s\n\n", sign, BOLD_FACE, opt_num, (opt_num == 1) ? "Train" : "Trains", "Waiting Passage", RESET_COLOR);
         printf("%s%s Slowing Down All Trains... %s%s\n\n", BOLD_FACE, TRAFFIC_LIGHT_ICON, TRAFFIC_LIGHT_ICON, RESET_COLOR);
     } else if (strcmp(sign, "Waiting For New Trains...") == 0) {
         printf("\n%s%s %s %s%s\n\n", BOLD_FACE, LOAD_ICON, sign, LOAD_ICON, RESET_COLOR);
@@ -282,10 +310,6 @@ static struct section *get_priority_section(const struct control *c) {
     
     return s_priority;
 }
-
-
-
-
 
 /*
 void print_summary(struct control *c) {

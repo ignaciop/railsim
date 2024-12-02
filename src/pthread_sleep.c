@@ -26,6 +26,7 @@ int pthread_sleep(int seconds) {
     }
     
     struct timeval tp;
+    
     /* When to expire is an absolute time, so get the current time and add //it to our delay time */
     gettimeofday(&tp, NULL);
     timetoexpire.tv_sec = tp.tv_sec + seconds; timetoexpire.tv_nsec = tp.tv_usec * 1000;

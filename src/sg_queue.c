@@ -71,7 +71,7 @@ void *sg_queue_dequeue(struct sg_queue *q) {
     return data;
 }
 
-size_t sg_queue_size(struct sg_queue *q) {
+size_t sg_queue_size(const struct sg_queue *q) {
     size_t qs = (q == NULL) ? 0 : q->size;
     
     return qs;

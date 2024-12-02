@@ -30,12 +30,10 @@ struct control {
     pthread_mutex_t *mtx;
 };
 
-struct control *new_control(double prob_arrive);
+struct control *new_control(const double prob_arrive);
 void delete_control(struct control **c);
-
 void *tunnel_control(void *arg);
 void *add_train(void *arg);
-
 
 //void print_summary(struct control *c);
 
