@@ -20,13 +20,13 @@
 #define TRAIN_LENGTH_2_TRAVEL_TIME 2
 
 struct control {
-    struct section **sections;
     int l1_passed_trains;
     int l2_passed_trains;
     int l3_passed_trains;
     int l4_passed_trains;
     int overloads;
     int breakdowns;
+    struct section **sections;
     pthread_mutex_t *mtx;
 };
 

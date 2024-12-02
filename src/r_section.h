@@ -6,8 +6,8 @@
 #include "sg_queue.h"
 
 struct section {
-    char header;
     double prob_arrive;
+    char header;
     struct sg_queue *trains;
     pthread_mutex_t *mtx;
     pthread_cond_t *cv;

@@ -7,9 +7,9 @@ struct sg_queue_node {
 };
 
 struct sg_queue {
+    size_t size;
     struct sg_queue_node *head;
     struct sg_queue_node *tail;
-    size_t size;
 };
 
 struct sg_queue *sg_queue_new(void);

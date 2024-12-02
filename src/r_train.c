@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 #include "r_train.h"
 
@@ -19,10 +18,10 @@ struct train *new_train(void) {
             
     nt->length = (p < TRAIN_PROB_LENGTH) ? TRAIN_LENGTH_1 : TRAIN_LENGTH_2;
     
-    nt->arrival_time = new_time();
-    nt->departure_time = NULL;
     nt->origin = ' ';
     nt->destination = ' ';
+    nt->arrival_time = new_time();
+    nt->departure_time = NULL;
     
     return nt;
 }

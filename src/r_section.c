@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 #include "r_section.h"
 #include "r_train.h"
@@ -14,8 +13,8 @@ struct section *new_section(const char header, const double prob_arrive) {
         exit(EXIT_FAILURE);
     }
     
-    ns->header = header;
     ns->prob_arrive = prob_arrive;
+    ns->header = header;
     ns->trains = sg_queue_new();
     
     ns->mtx = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));

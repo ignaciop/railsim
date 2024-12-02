@@ -12,9 +12,9 @@ struct sg_queue *sg_queue_new(void) {
         exit(EXIT_FAILURE);    
     }
     
+    q->size = 0;
     q->head = NULL;
     q->tail = NULL;
-    q->size = 0;
     
     return q;
 }

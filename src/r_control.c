@@ -29,6 +29,13 @@ struct control *new_control(const double prob_arrive) {
         exit(EXIT_FAILURE);
     }
     
+    nc->l1_passed_trains = 0;
+    nc->l2_passed_trains = 0;
+    nc->l3_passed_trains = 0;
+    nc->l4_passed_trains = 0;
+    nc->overloads = 0;
+    nc->breakdowns = 0;
+    
     nc->sections = (struct section **)malloc(sizeof(struct section *) * CONTROL_NUM_SECTIONS);
     
     if (nc->sections == NULL) {
@@ -41,13 +48,6 @@ struct control *new_control(const double prob_arrive) {
     nc->sections[1] = new_section('B', 1 - prob_arrive);
     nc->sections[2] = new_section('E', prob_arrive);
     nc->sections[3] = new_section('F', prob_arrive);
-    
-    nc->l1_passed_trains = 0;
-    nc->l2_passed_trains = 0;
-    nc->l3_passed_trains = 0;
-    nc->l4_passed_trains = 0;
-    nc->overloads = 0;
-    nc->breakdowns = 0;
     
     nc->mtx = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
     
@@ -83,6 +83,7 @@ void *tunnel_control(void *arg) {
     /* Counter for show overload sign only once */
     int overload_counter = 0;
     
+    /* Timestamp for each event */
     struct r_time *event_time = NULL;
     
     while (1) {
@@ -127,7 +128,7 @@ void *tunnel_control(void *arg) {
             /* Reset overload sign counter */
             overload_counter = 0;
             
-            print_status("Waiting For New Trains...", NULL, 0, NULL);
+            print_status("Waiting for new trains...", NULL, 0, NULL);
 
             /* Wait 1 second for new trains arrive to sections */
             pthread_sleep(CONTROL_NEW_TRAINS_TIME);
@@ -232,9 +233,9 @@ void *add_train(void *arg) {
 
 static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et) {
     if (strcmp(sign, OVERLOAD_SIGN) == 0) {
-        printf("%s| %s %02d:%02d:%02d |%s %s %s | %d %s %s |%s\n\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, opt_num, (opt_num == 1) ? "Train" : "Trains", "Waiting Passage", RESET_COLOR);
-        printf("%s%s Slowing Down All Trains... %s%s\n\n", BOLD_FACE, TRAFFIC_LIGHT_ICON, TRAFFIC_LIGHT_ICON, RESET_COLOR);
-    } else if (strcmp(sign, "Waiting For New Trains...") == 0) {
+        printf("%s| %s %02d:%02d:%02d |%s %s %s | %s %d %s %s |%s\n\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, "At least", opt_num, (opt_num == 1) ? "train" : "trains", "waiting passage", RESET_COLOR);
+        printf("\t\t%s%s Slowing down all trains... %s%s\n\n", BOLD_FACE, TRAFFIC_LIGHT_ICON, TRAFFIC_LIGHT_ICON, RESET_COLOR);
+    } else if (strcmp(sign, "Waiting for new trains...") == 0) {
         printf("\n%s%s %s %s%s\n\n", BOLD_FACE, LOAD_ICON, sign, LOAD_ICON, RESET_COLOR);
     } else {
         /* Buffer variables to hold correct constant values defined in r_symbols.h */
@@ -284,7 +285,7 @@ static void print_status(const char *sign, const struct train *t, const int opt_
         printf("%s| %s %02d:%02d:%02d |%s %s %s | %s (%c %s %c) | %s %sT%03d%s | %s Arrival: %02d:%02d:%02d | %s Departure: %02d:%02d:%02d | %s\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
         
         if (strcmp(sign, BREAKDOWN_SIGN) == 0) {
-            printf("\n%s%s%s%s Repair in Progress... %s%s%s%s\n\n", BOLD_FACE, BARRIER_ICON, " ", REPAIR_ICON, REPAIR_ICON, " ", BARRIER_ICON, RESET_COLOR);
+            printf("\n\t\t%s%s%s%s Repair in progress... %s%s%s%s\n\n", BOLD_FACE, BARRIER_ICON, " ", REPAIR_ICON, REPAIR_ICON, " ", BARRIER_ICON, RESET_COLOR);
         }
     }
 }

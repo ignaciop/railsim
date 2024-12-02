@@ -11,10 +11,10 @@
 struct train {
     int id;
     int length;
-    struct r_time *arrival_time;
-    struct r_time *departure_time;
     char origin;
     char destination;
+    struct r_time *arrival_time;
+    struct r_time *departure_time;
 };
 
 struct train *new_train(void);
