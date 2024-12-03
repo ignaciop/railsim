@@ -18,6 +18,8 @@ static struct section *get_priority_section(const struct control *c);
 pthread_mutex_t slowdown_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t slowdown_cv = PTHREAD_COND_INITIALIZER;
 
+pthread_mutex_t overload_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 bool slowdown_flag = false;
 
 struct control *new_control(const double prob_arrive) {
@@ -110,7 +112,11 @@ void *tunnel_control(void *arg) {
             /* Pause one second to sync broadcast signal to all threads */
             pthread_sleep(1);
             
+            pthread_mutex_lock(&overload_mtx);
+            
             overload_counter++;
+            
+            pthread_mutex_unlock(&overload_mtx);
         } else if (qt == 0) {
             pthread_mutex_lock(&slowdown_mtx);
             
@@ -125,14 +131,20 @@ void *tunnel_control(void *arg) {
             
             pthread_mutex_unlock(&slowdown_mtx);
             
+            pthread_mutex_lock(&overload_mtx);
+            
             /* Reset overload sign counter */
             overload_counter = 0;
+            
+            pthread_mutex_unlock(&overload_mtx);
             
             print_status("Waiting for new trains...", NULL, 0, NULL);
 
             /* Wait 1 second for new trains arrive to sections */
             pthread_sleep(CONTROL_NEW_TRAINS_TIME);
         }
+        
+        pthread_mutex_lock(&overload_mtx);
         
         /*
          * Broadcasting slowdown_flag to all threads has a delay
@@ -147,6 +159,8 @@ void *tunnel_control(void *arg) {
             
             delete_time(&event_time);
         }
+        
+        pthread_mutex_unlock(&overload_mtx);
         
         pthread_mutex_lock(s_priority->mtx);
         
@@ -233,7 +247,7 @@ void *add_train(void *arg) {
 
 static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et) {
     if (strcmp(sign, OVERLOAD_SIGN) == 0) {
-        printf("%s| %s %02d:%02d:%02d |%s %s %s | %s %d %s %s |%s\n\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, "At least", opt_num, (opt_num == 1) ? "train" : "trains", "waiting passage", RESET_COLOR);
+        printf("%s| %s %02d:%02d:%02d |%s %s %s | %d %s %s |%s\n\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, opt_num, (opt_num == 1) ? "train" : "trains", "waiting passage", RESET_COLOR);
         printf("\t\t%s%s Slowing down all trains... %s%s\n\n", BOLD_FACE, TRAFFIC_LIGHT_ICON, TRAFFIC_LIGHT_ICON, RESET_COLOR);
     } else if (strcmp(sign, "Waiting for new trains...") == 0) {
         printf("\n%s%s %s %s%s\n\n", BOLD_FACE, LOAD_ICON, sign, LOAD_ICON, RESET_COLOR);
