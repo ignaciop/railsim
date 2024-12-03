@@ -82,8 +82,9 @@ void delete_control(struct control **c) {
 void *tunnel_control(void *arg) {
     struct control *c = (struct control *)arg;
     
-    /* Counter for show overload sign only once */
-    int overload_counter = 0;
+    /* Counter and flag for show overload sign only once */
+    static int overload_counter = 0;
+    static bool overload_printed = false;
     
     /* Timestamp for each event */
     struct r_time *event_time = NULL;
@@ -115,6 +116,7 @@ void *tunnel_control(void *arg) {
             pthread_mutex_lock(&overload_mtx);
             
             overload_counter++;
+            overload_printed = false;
             
             pthread_mutex_unlock(&overload_mtx);
         } else if (qt == 0) {
@@ -133,8 +135,9 @@ void *tunnel_control(void *arg) {
             
             pthread_mutex_lock(&overload_mtx);
             
-            /* Reset overload sign counter */
+            /* Reset overload sign counter and flag */
             overload_counter = 0;
+            overload_printed = false;
             
             pthread_mutex_unlock(&overload_mtx);
             
@@ -150,7 +153,7 @@ void *tunnel_control(void *arg) {
          * Broadcasting slowdown_flag to all threads has a delay
          * This ensures showing the correct amount of queued trains only once
          */
-        if (overload_counter == 1) {
+        if (overload_counter == 1 && !overload_printed) {
             qt = queued_trains(c);
             
             event_time = new_time();
@@ -158,6 +161,8 @@ void *tunnel_control(void *arg) {
             print_status(OVERLOAD_SIGN, NULL, qt, event_time);
             
             delete_time(&event_time);
+            
+            overload_printed = true;
         }
         
         pthread_mutex_unlock(&overload_mtx);
@@ -261,8 +266,8 @@ static void print_status(const char *sign, const struct train *t, const int opt_
         char header1 = ' ';
         char header2 = ' ';
         
-        strncpy(t_length_p, (t->length == TRAIN_LENGTH_1) ? "[" : "[[", 2);
-        strncpy(t_length_s, (t->length == TRAIN_LENGTH_1) ? "]" : "]]", 2);
+        strncpy(t_length_p, (t->length == TRAIN_LENGTH_1) ? "[" : "<", 2);
+        strncpy(t_length_s, (t->length == TRAIN_LENGTH_1) ? "]" : ">", 2);
         
         switch (t->origin) {
             case 'A':
@@ -296,7 +301,7 @@ static void print_status(const char *sign, const struct train *t, const int opt_
             break;
         }
         
-        printf("%s| %s %02d:%02d:%02d |%s %s %s | %s (%c %s %c) | %s %sT%03d%s | %s Arrival: %02d:%02d:%02d | %s Departure: %02d:%02d:%02d | %s\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
+        printf("%s| %s %02d:%02d:%02d |%s %s %s | %s (%c %s %c) | %s %s%03d%s | %s Arrival: %02d:%02d:%02d | %s Departure: %02d:%02d:%02d | %s\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, line_sign, header1, arrow_icon, header2, TRAIN_ICON, t_length_p, t->id , t_length_s, CLOCK_ICON, t->arrival_time->hour, t->arrival_time->min, t->arrival_time->sec, CLOCK_ICON, t->departure_time->hour, t->departure_time->min, t->departure_time->sec, RESET_COLOR);
         
         if (strcmp(sign, BREAKDOWN_SIGN) == 0) {
             printf("\n\t\t%s%s%s%s Repair in progress... %s%s%s%s\n\n", BOLD_FACE, BARRIER_ICON, " ", REPAIR_ICON, REPAIR_ICON, " ", BARRIER_ICON, RESET_COLOR);
