@@ -10,7 +10,7 @@
 #include "r_symbols.h"
 #include "pthread_sleep.h"
 
-static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et);
+static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et, const struct r_time *dt);
 static char set_destination(const char tn_origin);
 static size_t queued_trains(const struct control *c);
 static struct section *get_priority_section(const struct control *c);
@@ -81,13 +81,16 @@ void delete_control(struct control **c) {
 
 void *tunnel_control(void *arg) {
     struct control *c = (struct control *)arg;
-    
+
     /* Counter and flag for show overload sign only once */
     static int overload_counter = 0;
     static bool overload_printed = false;
     
     /* Timestamp for each event */
     struct r_time *event_time = NULL;
+    
+    /* Initial timestamp for tunnel cleared */
+    struct r_time *stcleared_time = NULL;
     
     while (1) {
         pthread_mutex_lock(c->mtx);
@@ -133,15 +136,31 @@ void *tunnel_control(void *arg) {
             
             pthread_mutex_unlock(&slowdown_mtx);
             
+            /* Wait to last train passing */
+            pthread_sleep(1);
+            
             pthread_mutex_lock(&overload_mtx);
             
+            if (overload_counter > 0 && !overload_printed) {
+                event_time = new_time();
+                
+                struct r_time *dt_time = delta_time(event_time, stcleared_time);
+                
+                delete_time(&stcleared_time);
+            
+                print_status(CLEARED_SIGN, NULL, 0, event_time, dt_time);
+            
+                delete_time(&dt_time);
+                delete_time(&event_time);
+            }
+               
             /* Reset overload sign counter and flag */
             overload_counter = 0;
             overload_printed = false;
             
             pthread_mutex_unlock(&overload_mtx);
             
-            print_status("Waiting for new trains...", NULL, 0, NULL);
+            print_status("Waiting for new trains...", NULL, 0, NULL, NULL);
 
             /* Wait 1 second for new trains arrive to sections */
             pthread_sleep(CONTROL_NEW_TRAINS_TIME);
@@ -156,9 +175,12 @@ void *tunnel_control(void *arg) {
         if (overload_counter == 1 && !overload_printed) {
             qt = queued_trains(c);
             
+            /* Start time for cleared tunnel info */
+            stcleared_time = new_time();
+            
             event_time = new_time();
             
-            print_status(OVERLOAD_SIGN, NULL, qt, event_time);
+            print_status(OVERLOAD_SIGN, NULL, qt, event_time, NULL);
             
             delete_time(&event_time);
             
@@ -181,7 +203,7 @@ void *tunnel_control(void *arg) {
             
             event_time = new_time();
             
-            print_status(PASSING_SIGN, t, 0, event_time);
+            print_status(PASSING_SIGN, t, 0, event_time, NULL);
             
             delete_time(&event_time);
             
@@ -195,7 +217,7 @@ void *tunnel_control(void *arg) {
             if (p < TRAIN_PROB_BREAKDOWN) {
                 event_time = new_time();
                 
-                print_status(BREAKDOWN_SIGN, t, 0, event_time);
+                print_status(BREAKDOWN_SIGN, t, 0, event_time, NULL);
                 
                 delete_time(&event_time);
                 
@@ -250,10 +272,12 @@ void *add_train(void *arg) {
     pthread_exit(NULL);
 }
 
-static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et) {
+static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et, const struct r_time *dt) {
     if (strcmp(sign, OVERLOAD_SIGN) == 0) {
         printf("%s| %s %02d:%02d:%02d |%s %s %s | %s %d %s %s |%s\n\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, "At least", opt_num, (opt_num == 1) ? "train" : "trains", "waiting passage", RESET_COLOR);
         printf("\t\t%s%s Slowing down all trains... %s%s\n\n", BOLD_FACE, TRAFFIC_LIGHT_ICON, TRAFFIC_LIGHT_ICON, RESET_COLOR);
+    } else if (strcmp(sign, CLEARED_SIGN) == 0) {
+        printf("%s| %s %02d:%02d:%02d |%s %s %s | %s %02d:%02d:%02d |%s\n\n", BOLD_FACE, EVENT_ICON, et->hour, et->min, et->sec, RESET_COLOR, sign, BOLD_FACE, "Time taken:", dt->hour, dt->min, dt->sec, RESET_COLOR);
     } else if (strcmp(sign, "Waiting for new trains...") == 0) {
         printf("\n%s%s %s %s%s\n\n", BOLD_FACE, LOAD_ICON, sign, LOAD_ICON, RESET_COLOR);
     } else {
@@ -332,7 +356,6 @@ static size_t queued_trains(const struct control *c) {
 
     return total;
 }
-
 
 static struct section *get_priority_section(const struct control *c) {
     struct section *s_priority = c->sections[0];
