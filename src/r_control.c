@@ -22,6 +22,8 @@ pthread_mutex_t overload_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 bool slowdown_flag = false;
 
+int sim_time;
+
 struct control *new_control(const double prob_arrive) {
     struct control *nc = (struct control *)malloc(sizeof(struct control));
     
@@ -241,7 +243,7 @@ void *tunnel_control(void *arg) {
 
 void *add_train(void *arg) {
     struct section *s = (struct section *)arg;
-  
+    
     while (1) {
         pthread_mutex_lock(&slowdown_mtx);
        
