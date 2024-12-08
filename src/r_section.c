@@ -4,6 +4,9 @@
 #include "r_section.h"
 #include "r_train.h"
 
+static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
+
 struct section *new_section(const char header, const double prob_arrive) {
     struct section *ns = (struct section *)malloc(sizeof(struct section));
     
@@ -17,25 +20,8 @@ struct section *new_section(const char header, const double prob_arrive) {
     ns->header = header;
     ns->trains = sg_queue_new();
     
-    ns->mtx = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-    
-    if (ns->mtx == NULL) {
-        perror("Error allocating memory for new section mutex.\n");
-        
-        exit(EXIT_FAILURE);
-    }
-    
-    pthread_mutex_init(ns->mtx, NULL);
-    
-    ns->cv = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
-    
-    if (ns->cv == NULL) {
-        perror("Error allocating memory for new section condvar.\n");
-        
-        exit(EXIT_FAILURE);
-    }
-    
-    pthread_cond_init(ns->cv, NULL);
+    ns->mtx = mtx;
+    ns->cv = cv;
     
     return ns;
 }
@@ -48,15 +34,8 @@ void delete_section(struct section **s) {
             delete_train(&t);
         }
         
-        free((*s)->trains);
-        (*s)->trains = NULL;
+        sg_queue_delete(&((*s)->trains));
     }
-    
-    pthread_cond_destroy((*s)->cv);
-    (*s)->cv = NULL;
-    
-    pthread_mutex_destroy((*s)->mtx);
-    (*s)->mtx = NULL;
 
     free(*s);
     *s = NULL;

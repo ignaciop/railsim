@@ -10,7 +10,7 @@
 #define CONTROL_PROB_BRANCH 0.5
 #define CONTROL_QT_THRESHOLD 10
 #define CONTROL_NEW_TRAINS_TIME 1
-#define CONTROL_SIM_TIME_MIN 60
+#define CONTROL_ROUNDS_MIN 1
 
 #define SECTION_PROB_ARRIVE_MIN 0.0
 #define SECTION_PROB_ARRIVE_MAX 1.0
@@ -29,17 +29,14 @@ struct control {
     int l4_passed_trains;
     int overloads;
     int breakdowns;
+    int rounds;
     struct section **sections;
-    pthread_mutex_t *mtx;
+    pthread_mutex_t mtx;
 };
 
-struct control *new_control(const double prob_arrive);
+struct control *new_control(const double prob_arrive, const int rounds);
 void delete_control(struct control **c);
 void *tunnel_control(void *arg);
 void *add_train(void *arg);
-
-extern int sim_time;
-
-//void print_summary(struct control *c);
 
 #endif

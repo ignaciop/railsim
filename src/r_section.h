@@ -9,8 +9,8 @@ struct section {
     double prob_arrive;
     char header;
     struct sg_queue *trains;
-    pthread_mutex_t *mtx;
-    pthread_cond_t *cv;
+    pthread_mutex_t mtx;
+    pthread_cond_t cv;
 };
 
 struct section *new_section(const char header, const double prob_arrive);

@@ -10,21 +10,24 @@
 #include "r_symbols.h"
 #include "pthread_sleep.h"
 
-static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et, const struct r_time *dt);
-static char set_destination(const char tn_origin);
-static size_t queued_trains(const struct control *c);
-static struct section *get_priority_section(const struct control *c);
+static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
+bool slowdown_flag = false;
 pthread_mutex_t slowdown_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t slowdown_cv = PTHREAD_COND_INITIALIZER;
 
 pthread_mutex_t overload_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-bool slowdown_flag = false;
+bool exit_flag = false;
+pthread_mutex_t exit_mtx = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t exit_cv = PTHREAD_COND_INITIALIZER;
 
-int sim_time;
+static void print_status(const char *sign, const struct train *t, const int opt_num, const struct r_time *et, const struct r_time *dt);
+static char set_destination(const char tn_origin);
+static size_t queued_trains(const struct control *c);
+static struct section *get_priority_section(const struct control *c);
 
-struct control *new_control(const double prob_arrive) {
+struct control *new_control(const double prob_arrive, const int rounds) {
     struct control *nc = (struct control *)malloc(sizeof(struct control));
     
     if (nc == NULL) {
@@ -39,6 +42,7 @@ struct control *new_control(const double prob_arrive) {
     nc->l4_passed_trains = 0;
     nc->overloads = 0;
     nc->breakdowns = 0;
+    nc->rounds = rounds;
     
     nc->sections = (struct section **)malloc(sizeof(struct section *) * CONTROL_NUM_SECTIONS);
     
@@ -53,15 +57,7 @@ struct control *new_control(const double prob_arrive) {
     nc->sections[2] = new_section('E', prob_arrive);
     nc->sections[3] = new_section('F', prob_arrive);
     
-    nc->mtx = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-    
-    if (nc->mtx == NULL) {
-        perror("Error allocating memory for new control mutex.\n");
-        
-        exit(EXIT_FAILURE);
-    }
-    
-    pthread_mutex_init(nc->mtx, NULL);
+    nc->mtx = mtx;
     
     return nc;
 }
@@ -74,16 +70,13 @@ void delete_control(struct control **c) {
     free((*c)->sections);
     (*c)->sections = NULL;
     
-    pthread_mutex_destroy((*c)->mtx);
-    (*c)->mtx = NULL;
-    
     free(*c);
     *c = NULL;
 }
 
 void *tunnel_control(void *arg) {
     struct control *c = (struct control *)arg;
-
+    
     /* Counter and flag for show overload sign only once */
     static int overload_counter = 0;
     static bool overload_printed = false;
@@ -94,8 +87,13 @@ void *tunnel_control(void *arg) {
     /* Initial timestamp for tunnel cleared */
     struct r_time *stcleared_time = NULL;
     
-    while (1) {
-        pthread_mutex_lock(c->mtx);
+    int rounds = c->rounds;
+    
+    /* Round counter */
+    int rc = -1;
+    
+    while (!exit_flag) {
+        pthread_mutex_lock(&c->mtx);
         
         struct section *s_priority = get_priority_section(c);
         
@@ -125,6 +123,8 @@ void *tunnel_control(void *arg) {
             
             pthread_mutex_unlock(&overload_mtx);
         } else if (qt == 0) {
+            ++rc;
+            
             pthread_mutex_lock(&slowdown_mtx);
             
             /* Flag to all sections to continue adding new trains to their queues */
@@ -162,8 +162,21 @@ void *tunnel_control(void *arg) {
             
             pthread_mutex_unlock(&overload_mtx);
             
-            print_status("Waiting for new trains...", NULL, 0, NULL, NULL);
-
+            if (rc == rounds) {              
+                pthread_mutex_lock(&exit_mtx);
+                
+                /* Flag for all sections to exit */
+                exit_flag = true;
+                
+                pthread_cond_broadcast(&exit_cv);
+                
+                pthread_mutex_unlock(&exit_mtx);
+                
+                break;
+            } else {
+                print_status("Waiting for new trains...", NULL, 0, NULL, NULL);
+            }
+            
             /* Wait 1 second for new trains arrive to sections */
             pthread_sleep(CONTROL_NEW_TRAINS_TIME);
         }
@@ -191,7 +204,7 @@ void *tunnel_control(void *arg) {
         
         pthread_mutex_unlock(&overload_mtx);
         
-        pthread_mutex_lock(s_priority->mtx);
+        pthread_mutex_lock(&s_priority->mtx);
         
         /* Pass trains through tunnel and set their destinations */
         if (sg_queue_size(s_priority->trains) != 0) {
@@ -233,18 +246,32 @@ void *tunnel_control(void *arg) {
             delete_train(&t);
         }
         
-        pthread_mutex_unlock(s_priority->mtx);
+        pthread_mutex_unlock(&s_priority->mtx);
         
-        pthread_mutex_unlock(c->mtx);
+        pthread_mutex_unlock(&c->mtx);
     }
-
+    
+    pthread_mutex_lock(&exit_mtx);
+            
+    /* Flag to all sections to exit */
+    exit_flag = true;
+    
+    /*
+     * Re-issue a broadcast a signal to all sections to exit
+     */
+    pthread_cond_broadcast(&exit_cv);
+    
+    pthread_mutex_unlock(&exit_mtx);
+    
+    pthread_sleep(1);
+    
     pthread_exit(NULL);
 }
 
 void *add_train(void *arg) {
     struct section *s = (struct section *)arg;
     
-    while (1) {
+    while (!exit_flag) {
         pthread_mutex_lock(&slowdown_mtx);
        
         /* Check global flag to continue or stop adding new trains to section queue */
@@ -253,22 +280,25 @@ void *add_train(void *arg) {
         }
         
         pthread_mutex_unlock(&slowdown_mtx);
-            
+        
         /* At each second, a train arrives at section with probability "prob_arrive" */
         pthread_sleep(SECTION_ARRIVE_TIME);
         
-        pthread_mutex_lock(s->mtx);
-        
-        double p = (double)rand() / RAND_MAX;
-        
-        if (p < s->prob_arrive) {
-            struct train *nt = new_train();
-            nt->origin = s->header;
+        /* Re-check exit_flag because broadcast signal delay between threads */
+        if (!exit_flag) {
+            pthread_mutex_lock(&s->mtx);
+            
+            double p = (double)rand() / RAND_MAX;
+            
+            if (p < s->prob_arrive) {
+                struct train *nt = new_train();
+                nt->origin = s->header;
 
-            sg_queue_enqueue(s->trains, (void *)nt);
+                sg_queue_enqueue(s->trains, (void *)nt);
+            }
+            
+            pthread_mutex_unlock(&s->mtx);
         }
-        
-        pthread_mutex_unlock(s->mtx);
     }
     
     pthread_exit(NULL);
@@ -370,9 +400,3 @@ static struct section *get_priority_section(const struct control *c) {
     
     return s_priority;
 }
-
-/*
-void print_summary(struct control *c) {
-
-}
-*/
