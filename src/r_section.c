@@ -17,11 +17,12 @@ struct section *new_section(const char header, const double prob_arrive) {
     }
     
     ns->prob_arrive = prob_arrive;
-    ns->header = header;
     ns->trains = sg_queue_new();
     
     ns->mtx = mtx;
     ns->cv = cv;
+    
+    ns->header = header;
     
     return ns;
 }

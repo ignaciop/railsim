@@ -36,13 +36,7 @@ struct control *new_control(const double prob_arrive, const int rounds) {
         exit(EXIT_FAILURE);
     }
     
-    nc->l1_passed_trains = 0;
-    nc->l2_passed_trains = 0;
-    nc->l3_passed_trains = 0;
-    nc->l4_passed_trains = 0;
-    nc->overloads = 0;
-    nc->breakdowns = 0;
-    nc->rounds = rounds;
+    nc->mtx = mtx;
     
     nc->sections = (struct section **)malloc(sizeof(struct section *) * CONTROL_NUM_SECTIONS);
     
@@ -57,7 +51,14 @@ struct control *new_control(const double prob_arrive, const int rounds) {
     nc->sections[2] = new_section('E', prob_arrive);
     nc->sections[3] = new_section('F', prob_arrive);
     
-    nc->mtx = mtx;
+    nc->l1_passed_trains = 0;
+    nc->l2_passed_trains = 0;
+    nc->l3_passed_trains = 0;
+    nc->l4_passed_trains = 0;
+    nc->overloads = 0;
+    nc->queued_acc = 0;
+    nc->breakdowns = 0;
+    nc->rounds = rounds;
     
     return nc;
 }
@@ -147,12 +148,11 @@ void *tunnel_control(void *arg) {
                 event_time = new_time();
                 
                 struct r_time *dt_time = delta_time(event_time, stcleared_time);
-                
-                delete_time(&stcleared_time);
             
                 print_status(CLEARED_SIGN, NULL, 0, event_time, dt_time);
             
                 delete_time(&dt_time);
+                delete_time(&stcleared_time);
                 delete_time(&event_time);
             }
                
@@ -171,10 +171,7 @@ void *tunnel_control(void *arg) {
                 pthread_cond_broadcast(&exit_cv);
                 
                 pthread_mutex_unlock(&exit_mtx);
-                
-                /* Wait 1 second for signal propagation */
-                pthread_sleep(1);
-                
+              
                 break;
             } else {
                 print_status("Waiting for new trains...", NULL, 0, NULL, NULL);
@@ -202,6 +199,9 @@ void *tunnel_control(void *arg) {
             
             delete_time(&event_time);
             
+            c->queued_acc += qt;
+            c->overloads++;
+            
             overload_printed = true;
         }
         
@@ -225,6 +225,28 @@ void *tunnel_control(void *arg) {
             
             delete_time(&event_time);
             
+            switch (t->origin) {
+                case 'A':
+                case 'B':
+                    if (t->destination == 'E') {
+                        (t->origin == 'A') ? c->l1_passed_trains++ : c->l3_passed_trains++;
+                    } else if (t->destination == 'F') {
+                        (t->origin == 'A') ? c->l2_passed_trains++ : c->l4_passed_trains++;
+                    }
+                    
+                break;
+
+                case 'E':
+                case 'F':
+                    if (t->destination == 'A') {
+                        (t->origin == 'E') ? c->l1_passed_trains++ : c->l2_passed_trains++;
+                    } else if (t->destination == 'B') {
+                        (t->origin == 'E') ? c->l3_passed_trains++ : c->l4_passed_trains++;
+                    }
+                    
+                break;
+            }
+        
             /* Train length determines time in tunnel (train speed is 100 m/s)
              * 100 m train takes 1 second, 200 m train takes 2 seconds
              */
@@ -238,6 +260,8 @@ void *tunnel_control(void *arg) {
                 print_status(BREAKDOWN_SIGN, t, 0, event_time, NULL);
                 
                 delete_time(&event_time);
+                
+                c->breakdowns++;
                 
                 /* Takes 4 additional second for the train to pass if it breaks down */
                 pthread_sleep(TRAIN_BREAKDOWN_TIME);

@@ -40,18 +40,26 @@ void print_params(const double prob_arrive, const int rounds) {
     printf("\n%s%s\n\t\t%s%.1f%s\n\t\t%s%d%s%s\n\n", BOLD_FACE, "Chosen parameters:", "  X = ", prob_arrive,  " (probability of trains arriving at each section every second)", "  N = ", rounds, " (number of tunnel cleared rounds)", RESET_COLOR);
 }
 
-void print_summary(const struct control *c) {
- /*
-    printf("\n%s", "\033[1;97m --------------------\033[0m");
-    printf("\n%s", "\033[1;97m| Simulation Summary |\033[0m");
-    printf("\n%s\n", "\033[1;97m --------------------\033[0m");
-    printf("\n%s\n", "\033[1;95m\U00002BC1 Tunnel Clearings \U00002BC1\033[0m\033[1;97m    | Total: 2 | Average time taken: 00:01:10 |\033[0m");
-    printf("\n%s\n", "\033[1;92m\U0001F781 Tunnel Passings \U0001F783\033[0m\033[1;97m    | Total: 81 |\033[0m");
-    printf("%s\n", "\033[1;97m\U0001F535 Line 1 (A \U0001F870\U0001F872 E)     | Passing trains: 25 |\033[0m");
-    printf("%s\n", "\033[1;97m\U0001F7E3 Line 2 (A \U0001F870\U0001F872 F)     | Passing trains: 19 |\033[0m");
-    printf("%s\n", "\033[1;97m\U0001F534 Line 3 (B \U0001F870\U0001F872 E)     | Passing trains: 22 |\033[0m");
-    printf("%s\n", "\033[1;97m\U0001F7E0 Line 4 (B \U0001F870\U0001F872 F)     | Passing trains: 15 |\033[0m");
-    printf("\n%s\n", "\033[1;93m\U0001F7B2 System Overloads \U0001F7B2\033[0m\033[1;97m   | Total: 3 | Average number of trains waiting passage: 7 |\033[0m");
-    printf("\n%s\n\n", "\033[1;91m\U0001F7AC Train Breakdowns \U0001F7AC\033[0m\033[1;97m  | Total: 4 |\033[0m");
-    */
+void print_summary(const double probability, const struct r_time *end, const struct r_time *start, const struct control *c) {
+    struct r_time *et = delta_time(end, start);
+    
+    int tp = c->l1_passed_trains + c->l2_passed_trains + c->l3_passed_trains + c->l4_passed_trains;
+    int q_avg = c->queued_acc / c->overloads;
+    
+    print_title();
+    printf("\t%s%s%s\n", BOLD_FACE, "     | RUN SUMMARY |", RESET_COLOR);
+
+    print_params(probability, c->rounds);
+    
+    printf("%s%s%02d:%02d:%02d%s\n", BOLD_FACE, "Elapsed Time: ", et->hour, et->min, et->sec, RESET_COLOR);
+    
+    printf("\n%s%s%s%s%d%s%s\n", PASSING_SIGN, RESET_COLOR, BOLD_FACE, "    | Total: ", tp, " |", RESET_COLOR);
+    printf("\n%s%s%s%s%s%s%d%s%s\n", BOLD_FACE, LINE1_SIGN, " (A " , LEFT_ARROW_ICON, RIGHT_ARROW_ICON, " E)    | Total: ", c->l1_passed_trains, " |", RESET_COLOR);
+    printf("%s%s%s%s%s%s%d%s%s\n", BOLD_FACE, LINE2_SIGN, " (A " , LEFT_ARROW_ICON, RIGHT_ARROW_ICON, " F)    | Total: ", c->l2_passed_trains, " |", RESET_COLOR);
+    printf("%s%s%s%s%s%s%d%s%s\n", BOLD_FACE, LINE3_SIGN, " (B " , LEFT_ARROW_ICON, RIGHT_ARROW_ICON, " E)    | Total: ", c->l3_passed_trains, " |", RESET_COLOR);
+    printf("%s%s%s%s%s%s%d%s%s\n", BOLD_FACE, LINE4_SIGN, " (B " , LEFT_ARROW_ICON, RIGHT_ARROW_ICON, " F)    | Total: ", c->l4_passed_trains, " |", RESET_COLOR);
+    printf("\n%s%s%s%s%d%s%d%s%s\n", OVERLOAD_SIGN, RESET_COLOR, BOLD_FACE, "   | Total: ", c->overloads, " | Average number of trains waiting passage: ", q_avg, " |", RESET_COLOR);
+    printf("\n%s%s%s%s%d%s%s\n\n", BREAKDOWN_SIGN, RESET_COLOR, BOLD_FACE, "   | Total: ", c->breakdowns, " |", RESET_COLOR);
+    
+    delete_time(&et);
 }

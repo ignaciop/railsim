@@ -4,6 +4,7 @@
 
 #include "r_control.h"
 #include "r_common.h"
+#include "r_time.h"
 
 int main(int argc, char *argv[]) {
     double prob_arrive = -1.0;
@@ -21,6 +22,8 @@ int main(int argc, char *argv[]) {
     
     pthread_t st[CONTROL_NUM_SECTIONS] = {0};
     pthread_t ct = 0;
+    
+    struct r_time *start_sim = new_time();
     
     pthread_create(&ct, NULL, tunnel_control, (void *)cc);
     
@@ -40,7 +43,12 @@ int main(int argc, char *argv[]) {
     
     pthread_join(ct, NULL);
     
-    //print_summary(cc);
+    struct r_time *end_sim = new_time();
+    
+    print_summary(prob_arrive, end_sim, start_sim, cc);
+    
+    delete_time(&start_sim);
+    delete_time(&end_sim);
     
     delete_control(&cc);
     

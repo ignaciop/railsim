@@ -23,15 +23,16 @@
 #define TRAIN_LENGTH_2_TRAVEL_TIME 2
 
 struct control {
+    pthread_mutex_t mtx;
+    struct section **sections;
     int l1_passed_trains;
     int l2_passed_trains;
     int l3_passed_trains;
     int l4_passed_trains;
     int overloads;
+    int queued_acc;
     int breakdowns;
     int rounds;
-    struct section **sections;
-    pthread_mutex_t mtx;
 };
 
 struct control *new_control(const double prob_arrive, const int rounds);
