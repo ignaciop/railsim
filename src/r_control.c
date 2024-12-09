@@ -172,6 +172,9 @@ void *tunnel_control(void *arg) {
                 
                 pthread_mutex_unlock(&exit_mtx);
                 
+                /* Wait 1 second for signal propagation */
+                pthread_sleep(1);
+                
                 break;
             } else {
                 print_status("Waiting for new trains...", NULL, 0, NULL, NULL);
