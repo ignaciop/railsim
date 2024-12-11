@@ -52,5 +52,6 @@ int main(int argc, char *argv[]) {
     
     delete_control(&cc);
     
-    return EXIT_SUCCESS;
+    /* Wait for all threads to finish and then exit main */
+    pthread_exit(NULL);
 }

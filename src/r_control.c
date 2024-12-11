@@ -85,8 +85,11 @@ void *tunnel_control(void *arg) {
     /* Timestamp for each event */
     struct r_time *event_time = NULL;
     
-    /* Initial timestamp for tunnel cleared */
-    struct r_time *stcleared_time = NULL;
+    /* 
+     * Initial timestamp for tunnel cleared
+     * It is not a pointer to prevent memory leak after thread exit
+     */
+    struct r_time stcleared_time = {0, 0, 0};
     
     int rounds = c->rounds;
     
@@ -147,12 +150,11 @@ void *tunnel_control(void *arg) {
             if (overload_counter > 0 && !overload_printed) {
                 event_time = new_time();
                 
-                struct r_time *dt_time = delta_time(event_time, stcleared_time);
+                struct r_time *dt_time = delta_time(event_time, &stcleared_time);
             
                 print_status(CLEARED_SIGN, NULL, 0, event_time, dt_time);
             
                 delete_time(&dt_time);
-                delete_time(&stcleared_time);
                 delete_time(&event_time);
             }
                
@@ -190,19 +192,19 @@ void *tunnel_control(void *arg) {
         if (overload_counter == 1 && !overload_printed) {
             qt = queued_trains(c);
             
-            /* Start time for cleared tunnel info */
-            stcleared_time = new_time();
-            
             event_time = new_time();
+            
+            /* Start time for cleared tunnel info */
+            stcleared_time = *event_time;
             
             print_status(OVERLOAD_SIGN, NULL, qt, event_time, NULL);
             
             delete_time(&event_time);
             
+            overload_printed = true;
+            
             c->queued_acc += qt;
             c->overloads++;
-            
-            overload_printed = true;
         }
         
         pthread_mutex_unlock(&overload_mtx);
