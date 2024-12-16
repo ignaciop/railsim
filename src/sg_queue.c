@@ -78,6 +78,8 @@ size_t sg_queue_size(const struct sg_queue *q) {
 }
 
 void sg_queue_delete(struct sg_queue **q) {
-    free(*q);
-    *q = NULL;
+    if (q != NULL && *q != NULL) {
+        free(*q);
+        *q = NULL;
+    }
 }

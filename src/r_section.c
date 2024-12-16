@@ -28,16 +28,18 @@ struct section *new_section(const char header, const double prob_arrive) {
 }
 
 void delete_section(struct section **s) {
-    if ((*s)->trains != NULL) {
-        for (size_t i = 0; i < (*s)->trains->size; i++) {
-            struct train *t = (struct train *)sg_queue_dequeue((*s)->trains);
+    if (s != NULL && *s != NULL) {
+        if ((*s)->trains != NULL) {
+            for (size_t i = 0; i < (*s)->trains->size; i++) {
+                struct train *t = (struct train *)sg_queue_dequeue((*s)->trains);
+                
+                delete_train(&t);
+            }
             
-            delete_train(&t);
+            sg_queue_delete(&((*s)->trains));
         }
-        
-        sg_queue_delete(&((*s)->trains));
-    }
 
-    free(*s);
-    *s = NULL;
+        free(*s);
+        *s = NULL;
+    }
 }

@@ -64,15 +64,17 @@ struct control *new_control(const double prob_arrive, const int rounds) {
 }
 
 void delete_control(struct control **c) {
-    for (int i = 0; i < CONTROL_NUM_SECTIONS; i++) {
-        delete_section(&((*c)->sections[i]));
+    if (c != NULL && *c != NULL) {
+        for (int i = 0; i < CONTROL_NUM_SECTIONS; i++) {
+            delete_section(&((*c)->sections[i]));
+        }
+        
+        free((*c)->sections);
+        (*c)->sections = NULL;
+        
+        free(*c);
+        *c = NULL;
     }
-    
-    free((*c)->sections);
-    (*c)->sections = NULL;
-    
-    free(*c);
-    *c = NULL;
 }
 
 void *tunnel_control(void *arg) {

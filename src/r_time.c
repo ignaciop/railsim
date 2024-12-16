@@ -26,8 +26,10 @@ struct r_time *new_time(void) {
 }
 
 void delete_time(struct r_time **t) {
-    free(*t);
-    *t = NULL;
+    if (t != NULL && *t != NULL) {
+        free(*t);
+        *t = NULL;
+    }
 }
 
 struct r_time *delta_time(const struct r_time *ft, const struct r_time *st) {
