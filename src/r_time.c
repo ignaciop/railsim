@@ -26,7 +26,7 @@ struct r_time *new_time(void) {
 }
 
 void delete_time(struct r_time **t) {
-    if (t != NULL && *t != NULL) {
+    if (t != NULL) {
         free(*t);
         *t = NULL;
     }

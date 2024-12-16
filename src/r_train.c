@@ -27,7 +27,7 @@ struct train *new_train(void) {
 }
 
 void delete_train(struct train **t) {
-    if (t != NULL && *t != NULL) {
+    if (t != NULL) {
         delete_time(&((*t)->arrival_time));
         delete_time(&((*t)->departure_time));
     

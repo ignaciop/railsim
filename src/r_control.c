@@ -64,7 +64,7 @@ struct control *new_control(const double prob_arrive, const int rounds) {
 }
 
 void delete_control(struct control **c) {
-    if (c != NULL && *c != NULL) {
+    if (c != NULL) {
         for (int i = 0; i < CONTROL_NUM_SECTIONS; i++) {
             delete_section(&((*c)->sections[i]));
         }
