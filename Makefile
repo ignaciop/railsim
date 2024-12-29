@@ -15,8 +15,8 @@ SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%, $(OBJDIR)/%, $(SOURCES:.$(SRCEXT)=.o))
 
 CFLAGS := 
-LIB := -L lib
-INC := -Iexternal/unity/
+LIB :=
+INC :=
 
 debug: clean
 debug: CFLAGS := -g -Wall -Wextra -pedantic
@@ -42,9 +42,5 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 clean:
 	@echo " Cleaning..."; 
 	@echo " $(RM) -r $(OBJDIR) $(TARGET)"; $(RM) -r $(OBJDIR) $(TARGET)
-
-# Tests
-tester:
-	$(CC) $(CFLAGS) tests/test_queue.c $(INC) $(LIB) -o $@ $<
 
 .PHONY: clean

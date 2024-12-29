@@ -14,6 +14,8 @@ Some slight modifications I made:
 
 *Instead of -s, the command line argument -r is used to indicate the total number of rounds (e.g. -r 2).*
 
+*Logging is replaced with a simulation summary at the end of the run*
+
 The rest is the same as the original.
 
 Build: **make release**
